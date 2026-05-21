@@ -42,10 +42,16 @@ void main() async {
   // Sync completed games if user is authenticated and has connectivity
   final user = FirebaseAuth.instance.currentUser;
   if (user != null) {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult.contains(ConnectivityResult.mobile) ||
-        connectivityResult.contains(ConnectivityResult.wifi)) {
-      await SudokuStorageService.instance.syncCompletedGamesToFirebase();
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = connectivityResult == ConnectivityResult.mobile ||
+          connectivityResult == ConnectivityResult.wifi ||
+          connectivityResult == ConnectivityResult.ethernet;
+      if (hasConnection) {
+        await SudokuStorageService.instance.syncCompletedGamesToFirebase();
+      }
+    } catch (e) {
+      debugPrint('[main] Error checking connectivity or syncing: $e');
     }
   }
 
