@@ -2,33 +2,41 @@ import 'package:flutter/material.dart';
 
 class MenuButton extends StatelessWidget {
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final Color color;
+  final Color? borderColor;
   final bool isColor;
+  final bool isBorder;
+  final double width;
+  final double height;
   final VoidCallback? onTap;
 
   const MenuButton({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     required this.color,
+    this.borderColor,
     required this.isColor,
+    required this.isBorder,
+    required this.width,
+    required this.height,
     required this.onTap,
   });
-
+  
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        height: 70,
-        width: 300,
+        height: height,
+        width: width,
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isColor ? Color(0xFF53698A) : Colors.black),
+          border: Border.all(color: isBorder ?  borderColor! : color),
           boxShadow: [
             BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
           ],
@@ -44,7 +52,7 @@ class MenuButton extends StatelessWidget {
               children: [
                 Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isColor ? Colors.white : Colors.black), textAlign: TextAlign.center,),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(fontSize: 10, color: isColor ? Color.fromARGB(124, 255, 255, 255) : Color(0xFF3d3d3d) )),
+                 if (subtitle != null) Text(subtitle!, style: TextStyle(fontSize: 10, color: isColor ? Color.fromARGB(124, 255, 255, 255) : Color(0xFF3d3d3d) )),
               ],
             ),
           ],

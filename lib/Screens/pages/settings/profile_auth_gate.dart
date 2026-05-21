@@ -1,11 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:sudokulegend/Screens/pages/leaderboard/leaderboard.dart';
+import 'package:sudokulegend/Screens/pages/settings/profile.dart';
 import 'package:sudokulegend/Screens/pages/sync_data_page.dart';
 import 'package:sudokulegend/Widgets/helper.dart';
 
-class LeaderboardAuthGate extends StatelessWidget {
-  const LeaderboardAuthGate({super.key});
+class ProfileAuthGate extends StatelessWidget {
+  const ProfileAuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +19,7 @@ class LeaderboardAuthGate extends StatelessWidget {
 
         // Signed in → show leaderboard
         if (snapshot.hasData && snapshot.data != null) {
-          return LeaderboardPage();
+          return ProfilePage();
         }
 
         // Not signed in → show sign-in screen
@@ -28,6 +28,3 @@ class LeaderboardAuthGate extends StatelessWidget {
     );
   }
 }
-
-
-// ignore: unused_element

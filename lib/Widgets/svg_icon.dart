@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:sudokulegend/Widgets/helper.dart';
 
 class Svgicon extends StatelessWidget {
   const Svgicon({
@@ -7,11 +8,13 @@ class Svgicon extends StatelessWidget {
     required this.assetName,
     this.size = 22,
     this.color,
+    this.isColor = false,
   });
 
   final String assetName;
   final double size;
   final Color? color;
+  final bool isColor;
 
   @override
   Widget build(BuildContext context) {
@@ -19,17 +22,13 @@ class Svgicon extends StatelessWidget {
       "assets/icons/$assetName.svg",
       width: size,
       height: size,
-      colorFilter: ColorFilter.mode(
+      colorFilter: isColor ? ColorFilter.mode(
         color ?? (Theme.of(context).brightness == Brightness.light
             ? Colors.black87
             : Colors.white54),
         BlendMode.srcIn,
-      ),
-      errorBuilder: (context, error, stackTrace) {
-        debugPrintStack();
-        debugPrint("svg error: $error");
-        return Text("");
-      },
+      ) : null,
+      errorBuilder: (context, error, stackTrace) => Icon(Icons.error),
     );
   }
 }

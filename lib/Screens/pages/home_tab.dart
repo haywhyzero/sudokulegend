@@ -1,4 +1,6 @@
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sudokulegend/Models/data/difficulty_level.dart';
@@ -38,6 +40,7 @@ void initState()  {
     DifficultyLevel("Extreme",  10, masterGamesCompleted < 10),
     DifficultyLevel("16x16",  15, extremeGamesCompleted < 15),
   ];
+  
 
   // Auto-select the highest unlocked if nothing selected yet
   // if (!levels.any((l) => l.name == selected)) {
@@ -87,6 +90,30 @@ void _openmodaloverlay(){
 
 }
 
+void _dailyChallenge() async {
+  final levels = [
+    'Easy',
+    'Medium',
+    'Hard',
+    'Expert',
+    'Master',
+    'Extreme'
+  ];
+  final random = Random();
+  final rand = random.nextInt(6);
+  final newGameSlotNo = await SudokuStorageService.instance.getAndIncrementGameSlotNumber();
+  final data = await SudokuStorageService.instance.loadGame(slot: 'daily_challenge_active');
+  final today = DateTime.now().day;
+  bool contd = data != null ? true : false;
+  final day = data != null ? data['day'] : today;
+  final slotNo = data != null ? data['slotNo'] : newGameSlotNo;
+  if (mounted) {
+    Navigator.of(context).push(
+    MaterialPageRoute(builder: (context) => GamePage(isDailyChallenge: true, level: levels[rand], isContd: contd, challengeDay: day, slotNo: slotNo,))
+  );
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(saveGameProvider);
@@ -113,8 +140,8 @@ void _openmodaloverlay(){
                         child: Column(
                           children: [
                             SizedBox(height: 40,),
-                            Image.asset("assets/images/logo.png", width: 90, height: 90,),
-                            SizedBox(height: 14,),
+                            Image.asset("assets/images/logo.png", width: 120, height: 120,),
+                            SizedBox(height: 10,),
                             Text(
                           "SUDOKU LEGEND",
                           style: TextStyle(
@@ -141,6 +168,9 @@ void _openmodaloverlay(){
                 subtitle: "Start your jounery...",
                 color: const Color(0xFF53698A),
                 isColor: true,
+                isBorder: false,
+                height: 70,
+                width: 300,
                 onTap: () {
                   _openmodaloverlay();
                   },
@@ -153,7 +183,11 @@ void _openmodaloverlay(){
                 title: "CONTINUE", 
                 subtitle: continueSubtitle,
                 color: const Color.fromARGB(255, 255, 255, 255),
-                isColor: false, 
+                isColor: false,
+                isBorder: true,
+                borderColor: const Color(0xFF53698A),
+                height: 70,
+                width: 300,
                 onTap: gameTime == null
                     ? null 
                     : () {
@@ -168,12 +202,10 @@ void _openmodaloverlay(){
                 subtitle: "Shafter, daily ritual vibe",
                 color: const Color(0xFF53698A),
                 isColor: true,
-                onTap: () {
-                  // Navigator.of(context).push(
-                  //   MaterialPageRoute(builder: (context) => DailyChallengeScreen())
-                  // );
-                  testingPrint();
-                }, 
+                isBorder: false,
+                height: 70,
+                width: 300,
+                onTap: _dailyChallenge,
               ),
             ],
           ),

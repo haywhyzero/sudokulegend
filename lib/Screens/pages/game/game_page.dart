@@ -3,11 +3,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sudokulegend/Models/state%20management/settings_provider.dart';
+import 'package:sudokulegend/Models/badge_service.dart';
 import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
 import 'package:sudokulegend/Screens/pages/game/game_over.dart';
 import 'package:sudokulegend/Widgets/svg_icon.dart';
 import 'package:sudokulegend/main.dart';
 import 'package:vibration/vibration.dart';
+import 'package:sudokulegend/Widgets/notification_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:sudokulegend/Models/data/sudoku_generator.dart';
 import 'package:sudokulegend/Models/state%20management/game_persistent.dart';
@@ -17,7 +19,16 @@ class GamePage extends ConsumerStatefulWidget {
   final String level;
   final bool isContd;
   final int slotNo;
-  const GamePage({super.key, required this.level, required this.isContd, required this.slotNo});
+  final bool isDailyChallenge;
+  final int? challengeDay;
+  const GamePage({
+    super.key, 
+    required this.level, 
+    required this.isContd, 
+    required this.slotNo,
+    this.isDailyChallenge = false,
+    this.challengeDay,
+  });
 
   @override
   ConsumerState<GamePage> createState() => _GamePageState();
@@ -229,7 +240,7 @@ class _GamePageState extends ConsumerState<GamePage>
 
   Future<void> _initAudio() async {
     _audioPlayer = AudioPlayer();
-    try {
+    try { // Todo: download Audio
       await _audioPlayer.setAsset('assets/audios/correct.mp3');
     } catch (e) {
       debugPrint("Error loading audio: $e");
@@ -687,6 +698,12 @@ class _GamePageState extends ConsumerState<GamePage>
       Future.microtask(() {
         if (mounted) ref.read(saveGameProvider.notifier).state = {};
       });
+      
+      if (widget.isDailyChallenge) {
+        _saveToAchievements();
+        NotificationService().markTodayAsPlayed();
+      }
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => GameResultContent()),
@@ -727,7 +744,36 @@ class _GamePageState extends ConsumerState<GamePage>
     }
   }
 
-  void _saveCompletedGame() async { 
+  void _saveToAchievements() async {
+    // Badge logic milestones
+    final bool isSpeedDemon = _secondsElapsed < 300; // < 5 minutes
+    final bool isPerfectGame = _mistakes == 0;
+    final bool isHighScorer = _score > 1000;
+    final bool isMaster = widget.level == 'Expert' || widget.level == 'Master' || widget.level == 'Extreme';
+
+    final achievementData = {
+      'date': DateTime.now().toIso8601String(),
+      'day': widget.challengeDay,
+      'score': _score,
+      'time': _secondsElapsed,
+      'difficulty': widget.level,
+      'mistakes': _mistakes,
+      'badges': {
+        'speed_demon': isSpeedDemon,
+        'perfect_game': isPerfectGame,
+        'high_scorer': isHighScorer,
+        'master_tier': isMaster,
+      }
+    };
+    
+    // Save a permanent record for the achievements page
+    await SudokuStorageService.instance.saveGame(
+      slot: "achievement_${DateTime.now().millisecondsSinceEpoch}",
+      data: achievementData,
+    );
+  }
+
+  void _saveCompletedGame() async {
     final gameData = {
       'board': _board.map((cell) => cell.toJson()).toList(),
       'solution': _solution,
@@ -738,11 +784,50 @@ class _GamePageState extends ConsumerState<GamePage>
       'level': widget.level,
       'slotNo': widget.slotNo,
       'isCompleted': true,
+      'day': widget.challengeDay,
     };
     await SudokuStorageService.instance.saveGame(
       slot: "slot_${widget.slotNo}",
       data: gameData,
     );
+
+    // Check for badge achievements
+    final badgeService = BadgeService();
+    await badgeService.loadBadges();
+
+    final allGames = await SudokuStorageService.instance.listSavedGames();
+    final totalGames = allGames.where((g) => g['isCompleted'] == true).length;
+    final expertGames = allGames
+        .where((g) => g['isCompleted'] == true && g['level'] == 'Expert')
+        .length;
+    final extremeGames = allGames
+        .where((g) => g['isCompleted'] == true && g['level'] == 'Extreme')
+        .length;
+    final zeroMistakeGames = allGames
+        .where((g) => g['isCompleted'] == true && (g['mistakes'] ?? 0) == 0)
+        .length;
+
+    final newBadges = await badgeService.checkAchievements(
+      difficulty: widget.level,
+      elapsedSeconds: _secondsElapsed,
+      mistakes: _mistakes,
+      hintsUsed: _hintsUsed,
+      usedPencilMode: false,
+      totalGamesCompleted: totalGames,
+      expertGamesCompleted: expertGames,
+      extremeGamesCompleted: extremeGames,
+      largeGridGamesCompleted: 0,
+      zeroMistakeGames: zeroMistakeGames,
+      consecutiveZeroMistakes: 0,
+    );
+
+    // Attempt to sync completed game to Firebase
+    try {
+      await SudokuStorageService.instance.syncCompletedGamesToFirebase();
+    } catch (e) {
+      debugPrint('Error syncing game: $e');
+    }
+
     Future.microtask(() {
       if (mounted) ref.read(saveCompletedGameProvider.notifier).state = gameData;
     });
@@ -759,15 +844,25 @@ class _GamePageState extends ConsumerState<GamePage>
       'level': widget.level,
       'slotNo': widget.slotNo,
       'isCompleted': false,
+      'day': widget.challengeDay,
     };
-    await SudokuStorageService.instance.saveActiveGame(gameData);
+    
+    if (widget.isDailyChallenge) {
+      await SudokuStorageService.instance.saveGame(slot: 'daily_challenge_active', data: gameData);
+    } else {
+      await SudokuStorageService.instance.saveActiveGame(gameData);
+    }
+
     Future.microtask(() {
       if (mounted) ref.read(saveGameProvider.notifier).state = gameData;
     });
   }
 
   Future<void> _loadGame() async {
-    final data = await SudokuStorageService.instance.loadActiveGame();
+    final data = widget.isDailyChallenge 
+        ? await SudokuStorageService.instance.loadGame(slot: 'daily_challenge_active')
+        : await SudokuStorageService.instance.loadActiveGame();
+
     if (data != null) {
       if (data['mistakes'] >= 3) {
         setState(() {
@@ -860,9 +955,13 @@ class _GamePageState extends ConsumerState<GamePage>
           icon: const Icon(Icons.arrow_back_ios_new),
           onPressed: () {
             _saveGame();
+            if(widget.  isDailyChallenge) {
+              Navigator.pop(context);
+            } else {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (context) => const MainScreen()),
             );
+            }
           },
         ),
         title: settings.score

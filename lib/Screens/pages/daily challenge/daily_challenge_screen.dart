@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:sudokulegend/Screens/pages/game/game_page.dart';
+import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
+import 'package:sudokulegend/Widgets/menu_button.dart';
+import 'package:sudokulegend/Widgets/svg_icon.dart';
+import 'achievements_page.dart';
 
 class DailyChallengeScreen extends StatefulWidget {
   const DailyChallengeScreen({super.key});
@@ -8,14 +13,128 @@ class DailyChallengeScreen extends StatefulWidget {
 }
 
 class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
-  int currentMonth = 8; // August
-  int currentYear = 2025;
+  int currentMonth = DateTime.now().month;
+  int currentYear = DateTime.now().year;
 
-  // Days that have dashed circles (completed days)
-  final Set<int> completedDays = {2, 4, 12, 13, 14, 15, 17, 25};
+  // Dynamically loaded completed days
+  Set<int> completedDays = {};
+  bool isLoadingCompletedDays = true;
 
   // Today's highlighted day (solid circle)
-  final int todayDay = 25;
+  final int todayDay = DateTime.now().day;
+
+  int? selectedDay;
+  Map<String, dynamic>? activeDailyGame;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCompletedDays();
+    _loadActiveDailyChallenge();
+  }
+
+  Future<void> _loadCompletedDays() async {
+    try {
+      final allGames = await SudokuStorageService.instance.listSavedGames();
+      final completed = <int>{};
+
+      for (var game in allGames) {
+        if (game['isDailyChallenge'] == true) {
+          final day = game['dailyDay'] as int?;
+          final month = game['dailyMonth'] as int?;
+          final year = game['dailyYear'] as int?;
+          final isCompleted = game['isCompleted'] == true;
+
+          if (day != null && month == currentMonth && year == currentYear && isCompleted) {
+            completed.add(day);
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          completedDays = completed;
+          isLoadingCompletedDays = false;
+          // Select appropriate day on first load
+          selectedDay = completedDays.contains(todayDay)
+              ? (todayDay > 1 ? todayDay - 1 : 1)
+              : todayDay;
+        });
+      }
+    } catch (e) {
+      print("Error loading completed days: $e");
+      if (mounted) {
+        setState(() => isLoadingCompletedDays = false);
+      }
+    }
+  }
+
+  Future<void> _loadActiveDailyChallenge() async {
+    final data = await SudokuStorageService.instance.loadGame(
+      slot: 'daily_challenge_active',
+    );
+    if (mounted) {
+      setState(() {
+        activeDailyGame = data;
+      });
+    }
+  }
+
+  Future<void> _continueGame() async {
+    if (selectedDay == null || activeDailyGame == null) return;
+
+    final gameData = activeDailyGame!;
+    final level = gameData['level'] as String? ?? 'Easy';
+    final slotNo = gameData['slotNo'] as int? ?? 1;
+
+    if (!mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => GamePage(
+          level: level,
+          isContd: true,
+          slotNo: slotNo,
+          isDailyChallenge: true,
+          challengeDay: selectedDay!,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _restartGame() async {
+    if (selectedDay == null) return;
+
+    // Delete the current day's game if it exists
+    await SudokuStorageService.instance.deleteGame(
+      slot: 'daily_challenge_active',
+    );
+
+    // Get a new slot number
+    final newGameSlotNo = await SudokuStorageService.instance.getAndIncrementGameSlotNumber();
+
+    // Generate random difficulty
+    final difficulties = ['Easy', 'Medium', 'Hard', 'Expert', 'Master', 'Extreme'];
+    final randomDifficulty = difficulties[DateTime.now().microsecond % difficulties.length];
+
+    if (!mounted) return;
+
+    setState(() {
+      activeDailyGame = null;
+    });
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => GamePage(
+          level: randomDifficulty,
+          isContd: false,
+          slotNo: newGameSlotNo,
+          isDailyChallenge: true,
+          challengeDay: selectedDay!,
+        ),
+      ),
+    );
+  }
 
   String get monthName {
     const months = [
@@ -36,6 +155,15 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     return months[currentMonth];
   }
 
+  String _formatElapsedTime() {
+    if (activeDailyGame == null) return "00:00:00";
+    final elapsed = (activeDailyGame?['elapsedSeconds'] as int?) ?? 0;
+    final hours = elapsed ~/ 3600;
+    final minutes = (elapsed % 3600) ~/ 60;
+    final seconds = elapsed % 60;
+    return "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+  }
+
   int get daysInMonth => DateTime(currentYear, currentMonth + 1, 0).day;
 
   int get firstWeekday {
@@ -47,41 +175,40 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F0E8),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(),
+      backgroundColor: const Color(0xFFFFF8E1),
+      body: Column(
+        children: [
+          // Header
+          _buildHeader(),
 
-            // Trophy hero section
+          // Trophy hero section
             _buildTrophySection(),
-
-            // Calendar card
-            Expanded(child: _buildCalendarCard()),
-          ],
-        ),
+      
+          // Calendar card
+          Expanded(
+            child: Container(
+              color: Color(0xFFFFECB3),
+              child: _buildCalendarCard(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(0, 12, 10, 12),
       child: Row(
         children: [
-          // Back arrow
-          GestureDetector(
-            onTap: () {
-              Navigator.pop(context);
+          IconButton(
+            icon: Icon(Icons.arrow_back),
+            color: Colors.black, 
+            onPressed: () {
+              Navigator.of(context).pop();
             },
-            child: const Icon(
-              Icons.arrow_back,
-              color: Colors.black87,
-              size: 22,
-            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 10),
           const Text(
             'Daily Challenge',
             style: TextStyle(
@@ -92,19 +219,33 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
           ),
           const Spacer(),
           // Badge + count
-          Row(
-            children: [
-              _buildBadgeIcon(),
-              const SizedBox(width: 4),
-              const Text(
-                '7/31',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+          InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => AchievementsPage()),
+              );
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  "assets/images/trophy.png",
+                  width: 30,
+                  height: 30,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildBadgeIcon(),
                 ),
-              ),
-            ],
+                const SizedBox(width: 2),
+                const Text(
+                  '7/31',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -130,7 +271,25 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
         ),
       ),
       child: Stack(
-        children: [Positioned(right: 24, bottom: 0, child: _buildTrophy())],
+        children: [
+           // Month Navigator
+           Positioned(
+            left: 10,
+            bottom: 0,
+            child:  _buildMonthNavigator(),
+          ),
+           
+          Positioned(
+            right: 10,
+            bottom: -11,
+            child: Image.asset(
+              "assets/images/trophy2.png",
+              width: 150,
+              height: 150,
+              errorBuilder: (context, error, stackTrace) => _buildTrophy(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -154,18 +313,41 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
       ),
       child: Column(
         children: [
-          const SizedBox(height: 20),
-          // Month navigator
-          _buildMonthNavigator(),
           const SizedBox(height: 16),
           // Day headers
           _buildDayHeaders(),
-          const SizedBox(height: 8),
           // Calendar grid
-          Expanded(child: _buildCalendarGrid()),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: _buildCalendarGrid(),
+            ),
+          ),
           // Buttons
-          _buildButtons(),
-          const SizedBox(height: 16),
+          MenuButton(
+            color: Colors.transparent,
+            isColor: true,
+            isBorder: true,
+            borderColor: Colors.white,
+            title: "Continue",
+            subtitle: activeDailyGame != null
+                ? "▶ ${_formatElapsedTime()}"
+                : "No active game",
+            height: 57,
+            width: 300,
+            onTap: activeDailyGame != null ? _continueGame : null,
+          ),
+          SizedBox(height: 6),
+          MenuButton(
+            color: Colors.white,
+            isColor: false,
+            isBorder: false,
+            title: "Restart",
+            height: 50,
+            width: 300,
+            onTap: _restartGame,
+          ),
+          SizedBox(height: 12),
         ],
       ),
     );
@@ -173,13 +355,13 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
   Widget _buildMonthNavigator() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.only(bottom: 15, left: 20),
       child: Row(
         children: [
           Text(
             '$monthName $currentYear',
             style: const TextStyle(
-              color: Colors.white,
+              color: Colors.black,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -194,26 +376,25 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                 currentYear--;
               }
             }),
-            child: const Icon(
-              Icons.play_arrow,
-              color: Colors.white70,
-              size: 16,
-              textDirection: TextDirection.rtl,
-            ),
+            child: Svgicon(assetName: "play_arrow_back"),
           ),
           GestureDetector(
-            onTap: () => setState(() {
-              if (currentMonth < 12) {
-                currentMonth++;
-              } else {
-                currentMonth = 1;
-                currentYear++;
-              }
-            }),
-            child: const Icon(
-              Icons.play_arrow,
-              color: Colors.white70,
-              size: 16,
+            onTap: () {
+              final month = DateTime.now().month;
+              final year = DateTime.now().year;
+              if (currentMonth == month && currentYear == year) return;
+              setState(() {
+                if (currentMonth < 12) {
+                  currentMonth++;
+                } else {
+                  currentMonth = 1;
+                  currentYear++;
+                }
+              });
+            },
+            child: Svgicon(
+              assetName: "play_arrow_forward",
+              color: Colors.black,
             ),
           ),
         ],
@@ -277,117 +458,67 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   Widget _buildDayCell(int day) {
     final isToday = day == todayDay;
     final isCompleted = completedDays.contains(day);
+    final isSelected = day == selectedDay;
+    final month = DateTime.now().month;
+    final year = DateTime.now().year;
+    final isPrevMonth = currentMonth < month;
+    final isPrevYear = currentYear < year;
+    final isFutureDay = !isPrevMonth && !isPrevYear && day > todayDay;
 
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: Center(
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: isToday
-              ? BoxDecoration(color: Colors.white, shape: BoxShape.circle)
-              : null,
-          child: isCompleted && !isToday
-              ? CustomPaint(
-                  painter: DashedCirclePainter(),
-                  child: Center(
+    return GestureDetector(
+      onTap: () {
+        setState(() => selectedDay = day);
+      },
+      child: SizedBox(
+        width: 38,
+        height: 38,
+        child: Center(
+          child: Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: isToday ? Colors.white
+                  : (isSelected && isFutureDay) ? Colors.transparent
+                  : (isSelected && !isFutureDay) ? Colors.white24
+                  : Colors.transparent,
+              shape: BoxShape.circle,
+              border: isSelected && !isToday && !isFutureDay
+                  ? Border.all(color: Colors.white, width: 1)
+                  : null,
+            ),
+            child: isCompleted && !isToday
+                ? CustomPaint(
+                    painter: DashedCirclePainter(),
+                    child: Center(
+                      child: Text(
+                        '$day',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  )
+                : Center(
                     child: Text(
                       '$day',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isToday ? Color(0xFF3D5A80)
+                            : isFutureDay ? Colors.grey 
+                            : Colors.white.withOpacity(0.85),
                         fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
                       ),
                     ),
                   ),
-                )
-              : Center(
-                  child: Text(
-                    '$day',
-                    style: TextStyle(
-                      color: isToday
-                          ? const Color(0xFF3D5A80)
-                          : Colors.white.withOpacity(0.85),
-                      fontSize: 14,
-                      fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                    ),
-                  ),
-                ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Column(
-        children: [
-          // Continue button
-          Container(
-            width: double.infinity,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Continue',
-                  style: TextStyle(
-                    color: Color(0xFF3D5A80),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.play_arrow, color: Color(0xFF3D5A80), size: 14),
-                    SizedBox(width: 4),
-                    Text(
-                      '00:08:42',
-                      style: TextStyle(
-                        color: Color(0xFF3D5A80),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Restart button
-          Container(
-            width: double.infinity,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Center(
-              child: Text(
-                'Restart',
-                style: TextStyle(
-                  color: Color(0xFF3D5A80),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
-
 // ── Custom Painters ──────────────────────────────────────────────────────────
 
 class DashedCirclePainter extends CustomPainter {

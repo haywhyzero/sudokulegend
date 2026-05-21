@@ -25,7 +25,6 @@ class _DifficultiesState extends ConsumerState<Difficulties> {
   Future<void> _newGame(String levelName) async { // Accept levelName
     setState(() => _isloading = true,);
     try {
-
       // 1. Get the next available slot number for the *new* game we are about to start
       final newGameSlotNo = await SudokuStorageService.instance.getAndIncrementGameSlotNumber();
 
@@ -117,7 +116,7 @@ class _DifficultiesState extends ConsumerState<Difficulties> {
                                   const Icon(Icons.lock_outline, size: 16, color: Colors.grey),
                                   const SizedBox(width: 6,),
                                 if (isSelected && !isLocked && _isloading)
-                                  CircularProgressIndicator()
+                                  const Text("Loading...", style: TextStyle(color: Color(0xFF53698A), fontStyle: FontStyle.italic),)
                                 else
                                   Text(
                                     level.name,

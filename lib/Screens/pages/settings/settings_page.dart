@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,8 +8,9 @@ import 'package:sudokulegend/Models/state%20management/game_persistent.dart';
 import 'package:sudokulegend/Models/state%20management/settings_provider.dart';
 import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
 import 'package:sudokulegend/Screens/pages/settings/how_to_play.dart';
-import 'package:sudokulegend/Screens/pages/settings/profile.dart';
-// import 'package:sudokulegend/Screens/pages/settings/profile_page.dart';
+import 'package:sudokulegend/Screens/pages/settings/profile_auth_gate.dart';
+import 'package:sudokulegend/Models/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:sudokulegend/Widgets/svg_icon.dart';
 import 'package:sudokulegend/Widgets/themes.dart';
 
@@ -21,6 +23,26 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool isloading = false;
+  bool showLogOut = false;
+  StreamSubscription<User?>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    FirebaseAuth.instance
+    .authStateChanges()
+    .listen((User? user) {
+      if (mounted) {
+        setState(() => showLogOut = user != null);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
 
   void deleteData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -89,6 +111,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    final user = FirebaseAuth.instance.currentUser;
+    final name = user?.displayName ?? "Guest";
+    final email = user?.email ?? "login to edit profile";
     final color = Theme.of(context).brightness == Brightness.light
             ? Colors.black87
             : Colors.white54;
@@ -118,7 +143,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         children: [
           const SizedBox(height: 8),
           // Profile Section
-          _buildProfileTile(),
+          _buildProfileTile(
+            name: name,
+            email: email,
+            photoUrl: user?.photoURL,
+          ),
           const SizedBox(height: 8),
           // How To Play
           _buildNavigationTile(
@@ -229,22 +258,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onTap: showResetDialog,
           ),
           const SizedBox(height: 8),
-          Container(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            child: ListTile(
-              leading: Svgicon(assetName: "Logout", color: Colors.red,),
-              title: const Text(
-                'Log Out',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.red,
+          if (showLogOut)
+            Container(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              child: ListTile(
+                leading: Svgicon(assetName: "Logout", color: Colors.red,),
+                title: const Text(
+                  'Log Out',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500, 
+                    color: Colors.red,
+                  ),
                 ),
+                trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                onTap: () async {
+                  try {
+                    await AuthService().signOut();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error signing out: $e')),
+                    );
+                  }
+                },
               ),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-              onTap: () {},
             ),
-          ),
           const SizedBox(height: 32),
           // Version and Links
           Center(
@@ -287,30 +325,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  Widget _buildProfileTile() {
+  Widget _buildProfileTile({
+    required String name,
+    required String email,
+    String? photoUrl,
+  }) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: ListTile(
         leading: CircleAvatar(
           radius: 20,
           backgroundColor: Colors.green[100],
-          child: Image.asset(
-            'assets/images/403024_avatar_boy_male_user_young_icon.png',
-          ),
+          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+          child: photoUrl == null
+              ? Image.asset(
+                  'assets/images/403024_avatar_boy_male_user_young_icon.png',
+                )
+              : null,
         ),
-        title: const Text(
-          'Dahak',
+        title: Text(
+          name,
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
-        subtitle: const Text(
-          'ajaydaniel@gmail.com',
+        subtitle: Text(
+          email,
           style: TextStyle(fontSize: 13, color: Colors.grey),
         ),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
         onTap: () {
           Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (context) => ProfilePage()));
+          ).push(MaterialPageRoute(builder: (context) => ProfileAuthGate()));
         },
       ),
     );

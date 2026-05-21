@@ -56,11 +56,13 @@
 // ============================================================
 
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:sudokulegend/Screens/pages/statistics/stats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sudokulegend/Screens/pages/statistics/stats.dart';
 
 // ── Data model ───────────────────────────────────────────────
 
@@ -120,7 +122,7 @@ class SudokuStorageService {
   // ── Constants ──────────────────────────────────────────────
   static const String _gameDataKeyPrefix = 'sudoku_game_';
   static const String _activeGameKey = 'sudoku_active_game';
-  // static const String _leaderboardCollection = 'leaderboard';
+  static const String _leaderboardCollection = 'leaderboard';
   static const String _nextSlotNumberKey = 'sudoku_next_slot_number';
 
   /// Gets the current slot number to use for a new game, then increments
@@ -132,8 +134,9 @@ class SudokuStorageService {
     await prefs.setInt(_nextSlotNumberKey, slotToUse + 1);
     return slotToUse;
   }
+  
 
-  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // ════════════════════════════════════════════════════════════
   //  SECTION 1 — LOCAL GAME DATA  (SharedPreferences)
@@ -247,6 +250,16 @@ class SudokuStorageService {
     return gamesArray;
   }
 
+
+  Future<void> saveFirstUseDate() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('first_use_date') == null) {
+      final now = DateTime.now();
+      await prefs.setString('first_use_date', now.toIso8601String());
+    }
+  }
+
+
   // ════════════════════════════════════════════════════════════
   //  SECTION 4 — STATISTICS CALCULATION
   // ════════════════════════════════════════════════════════════
@@ -334,69 +347,131 @@ class SudokuStorageService {
     return DifficultyStats.loadLocally(difficulty);
   }
 
+
   // ════════════════════════════════════════════════════════════
   //  SECTION 2 — FIRESTORE SYNC
   // ════════════════════════════════════════════════════════════
 
-  // /// Push a player's score to Firestore.
-  // /// Call this after a player successfully completes a puzzle.
-  // ///
-  // /// Usage:
-  // /// ```dart
-  // /// await SudokuStorageService.instance.syncScoreToFirebase(
-  // ///   entry: LeaderboardEntry(
-  // ///     userId: FirebaseAuth.instance.currentUser!.uid,
-  // ///     displayName: 'Alice',
-  // ///     score: 4800,
-  // ///     difficulty: 'hard',
-  // ///     timeSeconds: 183,
-  // ///     completedAt: DateTime.now(),
-  // ///   ),
-  // /// );
-  // /// ```
-  // Future<void> syncScoreToFirebase({required LeaderboardEntry entry}) async {
-  //   try {
-  //     await _firestore
-  //         .collection(_leaderboardCollection)
-  //         .doc(entry.userId)
-  //         .set(entry.toFirestore(), SetOptions(merge: true));
-  //     debugPrint('[SudokuStorageService] Score synced for ${entry.userId}');
-  //   } on FirebaseException catch (e) {
-  //     debugPrint('[SudokuStorageService] Firestore sync error: ${e.message}');
-  //     rethrow;
-  //   }
-  // }
+  /// Push a player's score to Firestore.
+  /// Call this after a player successfully completes a puzzle.
+  ///
+  /// Usage:
+  /// ```dart
+  /// await SudokuStorageService.instance.syncScoreToFirebase(
+  ///   entry: LeaderboardEntry(
+  ///     userId: FirebaseAuth.instance.currentUser!.uid,
+  ///     displayName: 'Alice',
+  ///     score: 4800,
+  ///     difficulty: 'hard',
+  ///     timeSeconds: 183,
+  ///     completedAt: DateTime.now(),
+  ///   ),
+  /// );
+  /// ```
+  Future<void> syncScoreToFirebase({required LeaderboardEntry entry}) async {
+    try {
+      await _firestore
+          .collection(_leaderboardCollection)
+          .doc(entry.userId)
+          .set(entry.toFirestore(), SetOptions(merge: true));
+      debugPrint('[SudokuStorageService] Score synced for ${entry.userId}');
+    } on FirebaseException catch (e) {
+      debugPrint('[SudokuStorageService] Firestore sync error: ${e.message}');
+      rethrow;
+    }
+  }
 
-  // /// Fetch the top [limit] leaderboard entries for a given [difficulty].
-  // /// Pass `difficulty: null` to fetch across all difficulties.
-  // ///
-  // /// Usage:
-  // /// ```dart
-  // /// final entries = await SudokuStorageService.instance
-  // ///     .fetchLeaderboard(difficulty: 'hard', limit: 20);
-  // /// ```
-  // Future<List<LeaderboardEntry>> fetchLeaderboard({
-  //   String? difficulty,
-  //   int limit = 50,
-  // }) async {
-  //   try {
-  //     Query<Map<String, dynamic>> query =
-  //         _firestore.collection(_leaderboardCollection);
+  /// Fetch the top [limit] leaderboard entries for a given [difficulty].
+  /// Pass `difficulty: null` to fetch across all difficulties.
+  ///
+  /// Usage:
+  /// ```dart
+  /// final entries = await SudokuStorageService.instance
+  ///     .fetchLeaderboard(difficulty: 'hard', limit: 20);
+  /// ```
+  Future<List<LeaderboardEntry>> fetchLeaderboard({
+    String? difficulty,
+    int limit = 50,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> query =
+          _firestore.collection(_leaderboardCollection);
 
-  //     if (difficulty != null) {
-  //       query = query.where('difficulty', isEqualTo: difficulty);
-  //     }
+      if (difficulty != null) {
+        query = query.where('difficulty', isEqualTo: difficulty);
+      }
 
-  //     // Requires the composite index described in the setup comment above
-  //     query = query.orderBy('score', descending: true).limit(limit);
+      // Requires the composite index described in the setup comment above
+      query = query.orderBy('score', descending: true).limit(limit);
 
-  //     final snapshot = await query.get();
-  //     return snapshot.docs.map(LeaderboardEntry.fromFirestore).toList();
-  //   } on FirebaseException catch (e) {
-  //     debugPrint('[SudokuStorageService] fetchLeaderboard error: ${e.message}');
-  //     return [];
-  //   }
-  // }
+      final snapshot = await query.get();
+      return snapshot.docs.map(LeaderboardEntry.fromFirestore).toList();
+    } on FirebaseException catch (e) {
+      debugPrint('[SudokuStorageService] fetchLeaderboard error: ${e.message}');
+      return [];
+    }
+  }
+
+  /// Sync all completed games to Firebase for the authenticated user.
+  /// This should be called on app startup if connectivity is available.
+  Future<void> syncCompletedGamesToFirebase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('[SudokuStorageService] No authenticated user for sync');
+      return;
+    }
+
+    try {
+      final allGames = await listSavedGames();
+      final completedGames = allGames.where((game) => game['isCompleted'] == true).toList();
+
+      for (final game in completedGames) {
+        final score = _calculateScore(
+          difficulty: game['difficulty'] as String,
+          elapsedSeconds: game['elapsedSeconds'] as int,
+          hintsUsed: game['hintsUsed'] as int,
+        );
+
+        final entry = LeaderboardEntry(
+          userId: user.uid,
+          displayName: user.displayName ?? 'Player',
+          score: score,
+          difficulty: game['difficulty'] as String,
+          timeSeconds: game['elapsedSeconds'] as int,
+          completedAt: DateTime.now(),
+        );
+
+        await syncScoreToFirebase(entry: entry);
+      }
+
+      debugPrint('[SudokuStorageService] Synced ${completedGames.length} games to Firebase');
+    } catch (e) {
+      debugPrint('[SudokuStorageService] Error syncing completed games: $e');
+    }
+  }
+
+  /// Calculate score based on difficulty, time, and hints used.
+  int _calculateScore({
+    required String difficulty,
+    required int elapsedSeconds,
+    required int hintsUsed,
+  }) {
+    const difficultyMultiplier = {
+      'Easy': 1,
+      'Medium': 2,
+      'Hard': 3,
+      'Expert': 4,
+      'Master': 5,
+      'Extreme': 6,
+    };
+
+    final multiplier = difficultyMultiplier[difficulty] ?? 1;
+    final baseScore = 1000 * multiplier;
+    final timeBonus = max(0, 500 - (elapsedSeconds ~/ 10));
+    final hintPenalty = hintsUsed * 100;
+
+    return max(100, baseScore + timeBonus - hintPenalty);
+  }
 
   // // ════════════════════════════════════════════════════════════
   // //  SECTION 3 — LEADERBOARD WIDGET

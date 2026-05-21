@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:sudokulegend/Widgets/svg_icon.dart';
+import 'package:sudokulegend/Widgets/helper.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sudokulegend/Models/auth_service.dart';
 
 class SyncDataPage extends StatelessWidget {
-  const SyncDataPage({super.key});
+  const SyncDataPage({super.key}); 
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: const Text(
-          "Sign In",
+          "Sync Data",
           style: TextStyle(
             color: Colors.black,
             fontSize: 20,
@@ -36,6 +36,7 @@ class SyncDataPage extends StatelessWidget {
         
               const SizedBox(height: 30),
         
+
               // Sync status text
               Text(
                 "Login to sync data...",
@@ -54,7 +55,19 @@ class SyncDataPage extends StatelessWidget {
                 logoPath: "assets/icons/google_logo.png",
                 backgroundColor: Colors.white,
                 borderColor: Colors.grey.shade300,
-                onTap: () {},
+                onTap: () async {
+                    try {
+                      final userCredential = await AuthService().signInWithGoogle();
+                      if (userCredential != null) {
+                         debugPrint("User signed in: ${userCredential.user?.displayName}");
+                         Navigator.pop(context); // Go back after successful login
+                      }
+                    } catch (e) {
+                      showSnackBar(context: context, message: "Login failed: $e");
+                      debugPrint("error: $e");
+                    }
+
+                },
               ),
         
               const SizedBox(height: 16),
@@ -62,10 +75,16 @@ class SyncDataPage extends StatelessWidget {
               // Continue with Facebook
               _buildSocialButton(
                 label: "Continue with Facebook",
-                logoPath: "assets/icons/facebook.png", 
+                isSvg: true,
+                logoPath: "facebook", 
                 backgroundColor: Colors.white,
                 borderColor: Colors.grey.shade300,
-                onTap: () {},
+                onTap: () {
+                  showSnackBar(
+                    context: context,
+                    message: "Facebook not configured"
+                  );
+                },
               ),
         
               const SizedBox(height: 16),
@@ -77,7 +96,12 @@ class SyncDataPage extends StatelessWidget {
                 iconLogo: Icons.apple,
                 backgroundColor: Colors.white,
                 borderColor: Colors.grey.shade300,
-                onTap: () {},
+                onTap: () {
+                  showSnackBar(
+                    context: context,
+                    message: "Apple not configure"
+                  );
+                },
               ),
             ],
           ),
@@ -91,6 +115,7 @@ class SyncDataPage extends StatelessWidget {
     required Color backgroundColor,
     String? logoPath,
     bool isIcon = false,
+    bool isSvg = false,
     IconData? iconLogo,
     Color? textColor,
     Color? borderColor,
@@ -111,9 +136,9 @@ class SyncDataPage extends StatelessWidget {
         child: Row(
           children: [
             const SizedBox(width: 24),
-            isIcon ? Icon(iconLogo)
-            : Image.asset(
-              "$logoPath",
+            isIcon ? Icon(iconLogo)  
+            : isSvg ? Svgicon(assetName: logoPath!, isColor: false,) : Image.asset(
+              "$logoPath",    
               width: 24,
               height: 24,
               color: logoColor,
