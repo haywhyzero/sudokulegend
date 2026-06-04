@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:sudokulegend/Screens/pages/settings/profile.dart';
+import 'package:sudokulegend/Screens/pages/settings/profile_page.dart';
 import 'package:sudokulegend/Screens/pages/sync_data_page.dart';
 import 'package:sudokulegend/Widgets/helper.dart';
 

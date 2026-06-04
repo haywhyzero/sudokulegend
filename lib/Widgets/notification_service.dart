@@ -19,7 +19,7 @@ class NotificationService {
     tz.initializeTimeZones();
     
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
+    const iosSettings = DarwinInitializationSettings( 
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -35,6 +35,8 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
   }
+
+  // TODO: check where notifications are called and scheduled. Also fix the tap trigger
 
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
@@ -180,12 +182,17 @@ class NotificationService {
     await _notifications.cancel(id);
   }
 
+  Future<bool> hasPlayedTodayCheck() async {
+    return _hasPlayedToday();
+  }
+
   /// Enable notifications
   Future<void> enableNotifications() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_notificationEnabledKey, true);
     await scheduleAllReminders();
   }
+
 
   /// Disable notifications
   Future<void> disableNotifications() async {
@@ -232,6 +239,7 @@ class NotificationService {
       hour,
       minute,
     );
+    
 
     // If the scheduled time has passed today, schedule for tomorrow
     if (scheduledDate.isBefore(now)) {

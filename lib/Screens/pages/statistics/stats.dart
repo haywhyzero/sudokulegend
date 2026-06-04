@@ -4,124 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sudokulegend/Models/auth_service.dart';
+import 'package:sudokulegend/Models/state%20management/profile_provider.dart';
+import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
+import 'package:sudokulegend/Screens/pages/settings/profile_page.dart';
+import 'package:sudokulegend/Screens/pages/sync_data_page.dart';
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  STATS MODEL
-// ══════════════════════════════════════════════════════════════════════════════
-
-class DifficultyStats {
-  final int gamesPlayed;
-  final int gamesWon;
-  final int gamesLost;
-  final int winStreaks;
-  final int winWithNoMistakes;
-  final double winRate; // 0.0 – 1.0
-  final int bestTimeSeconds; // 0 = no record
-  final int highScore;
-
-  const DifficultyStats({
-    this.gamesPlayed = 0,
-    this.gamesWon = 0,
-    this.gamesLost = 0,
-    this.winStreaks = 0,
-    this.winWithNoMistakes = 0,
-    this.winRate = 0,
-    this.bestTimeSeconds = 0,
-    this.highScore = 0,
-  });
-
-  // ── SharedPreferences key prefix ────────────────────────────────────────────
-  static String _key(String difficulty, String field) =>
-      'stats_${difficulty.toLowerCase()}_$field';
-
-  /// Save to SharedPreferences (called after every completed game).
-  Future<void> saveLocally(String difficulty) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_key(difficulty, 'gamesPlayed'), gamesPlayed);
-    await prefs.setInt(_key(difficulty, 'gamesWon'), gamesWon);
-    await prefs.setInt(_key(difficulty, 'gamesLost'), gamesLost);
-    await prefs.setInt(_key(difficulty, 'winStreaks'), winStreaks);
-    await prefs.setInt(
-      _key(difficulty, 'winWithNoMistakes'),
-      winWithNoMistakes,
-    );
-    await prefs.setDouble(_key(difficulty, 'winRate'), winRate);
-    await prefs.setInt(_key(difficulty, 'bestTimeSeconds'), bestTimeSeconds);
-    await prefs.setInt(_key(difficulty, 'highScore'), highScore);
-  }
-
-  /// Load from SharedPreferences (offline fallback).
-  static Future<DifficultyStats> loadLocally(String difficulty) async {
-    final prefs = await SharedPreferences.getInstance();
-    final played = prefs.getInt(_key(difficulty, 'gamesPlayed')) ?? 0;
-    final won = prefs.getInt(_key(difficulty, 'gamesWon')) ?? 0;
-    final lost = prefs.getInt(_key(difficulty, 'gamesLost')) ?? 0;
-    final rate = played > 0 ? won / played : 0.0;
-    return DifficultyStats(
-      gamesPlayed: played,
-      gamesWon: won,
-      gamesLost: lost,
-      winStreaks: prefs.getInt(_key(difficulty, 'winStreaks')) ?? 0,
-      winWithNoMistakes:
-          prefs.getInt(_key(difficulty, 'winWithNoMistakes')) ?? 0,
-      winRate: prefs.getDouble(_key(difficulty, 'winRate')) ?? rate,
-      bestTimeSeconds: prefs.getInt(_key(difficulty, 'bestTimeSeconds')) ?? 0,
-      highScore: prefs.getInt(_key(difficulty, 'highScore')) ?? 0,
-    );
-  }
-
-  /// Load from Firestore (online, signed-in users).
-  ///
-  /// Firestore structure:
-  ///   users/{uid}/stats/{difficulty}   (document per difficulty)
-  ///     gamesPlayed     : number
-  ///     gamesWon        : number
-  ///     gamesLost       : number
-  ///     winStreaks       : number
-  ///     winWithNoMistakes : number
-  ///     winRate         : number  (0.0 – 1.0)
-  ///     bestTimeSeconds : number
-  ///     highScore       : number
-  static Future<DifficultyStats> loadFromFirestore(
-    String uid,
-    String difficulty,
-  ) async {
-    // final doc = await FirebaseFirestore.instance
-    //     .collection('users')
-    //     .doc(uid)
-    //     .collection('stats')
-    //     .doc(difficulty.toLowerCase())
-    //     .get();
-
-    // if (!doc.exists) return const DifficultyStats();
-    // final d = doc.data()!;
-    // return DifficultyStats(
-    //   gamesPlayed: (d['gamesPlayed'] as num?)?.toInt() ?? 0,
-    //   gamesWon: (d['gamesWon'] as num?)?.toInt() ?? 0,
-    //   gamesLost: (d['gamesLost'] as num?)?.toInt() ?? 0,
-    //   winStreaks: (d['winStreaks'] as num?)?.toInt() ?? 0,
-    //   winWithNoMistakes: (d['winWithNoMistakes'] as num?)?.toInt() ?? 0,
-    //   winRate: (d['winRate'] as num?)?.toDouble() ?? 0,
-    //   bestTimeSeconds: (d['bestTimeSeconds'] as num?)?.toInt() ?? 0,
-    //   highScore: (d['highScore'] as num?)?.toInt() ?? 0,
-    // );
-    return DifficultyStats();
-  }
-
-  String get formattedBestTime {
-    if (bestTimeSeconds == 0) return '--:--';
-    final m = (bestTimeSeconds ~/ 60).toString().padLeft(2, '0');
-    final s = (bestTimeSeconds % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  String get formattedWinRate => '${(winRate * 100).toStringAsFixed(0)}%';
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  LOADING STRATEGY
-//  Tries Firebase if user is signed in, otherwise falls back to SharedPrefs.
-// ══════════════════════════════════════════════════════════════════════════════
+// Load from Firebase or from local
 
 enum _DataSource { firebase, local }
 
@@ -132,44 +21,29 @@ class _StatsResult {
 }
 
 Future<_StatsResult> _loadStats(String difficulty) async {
-  // final user = FirebaseAuth.instance.currentUser;
+  final user = FirebaseAuth.instance.currentUser;
 
-  // // Signed in — try Firebase first
-  // if (user != null) {
-  //   try {
-  //     final stats = await DifficultyStats.loadFromFirestore(
-  //       user.uid,
-  //       difficulty,
-  //     );
-  //     return _StatsResult(stats, _DataSource.firebase);
-  //   } catch (_) {
-  //     // Firebase failed (no internet) → fall through to local
-  //       final stats = await DifficultyStats.loadLocally(difficulty);
-  //       return _StatsResult(stats, _DataSource.local);
-  //   }
-  // }
+  // Signed in — try Firebase first
+  if (user != null) {
+    try {
+      final stats = await DifficultyStats.loadFromFirestore(
+        user.uid,
+        difficulty,
+      );
+      return _StatsResult(stats, _DataSource.firebase);
+    } catch (_) {
+      // Firebase failed (no internet) → fall through to local
+        final stats = await SudokuStorageService.instance.loadStatistics(difficulty);
+        return _StatsResult(stats, _DataSource.local);
+    }
+  }
 
   // Not signed in or Firebase failed → SharedPreferences
-  final stats = await DifficultyStats.loadLocally(difficulty);
+  final stats = await SudokuStorageService.instance.loadStatistics(difficulty);
   return _StatsResult(stats, _DataSource.local);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  PROFILE PROVIDER (reuse yours — placeholder here)
-// ══════════════════════════════════════════════════════════════════════════════
 
-class ProfileState {
-  final String name;
-  final String username;
-  final String? avatarUrl;
-  const ProfileState({
-    this.name = 'Ajayi Daniel',
-    this.username = 'Dahak',
-    this.avatarUrl,
-  });
-}
-
-final profileProvider = Provider<ProfileState>((_) => const ProfileState());
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  STATISTICS PAGE
@@ -184,7 +58,7 @@ class StatisticsPage extends ConsumerStatefulWidget {
 
 class _StatisticsPageState extends ConsumerState<StatisticsPage>
     with SingleTickerProviderStateMixin {
-  static const _difficulties = ['Easy', 'Medium', 'Hard', 'Expert'];
+  static const _difficulties = ['Easy', 'Medium', 'Hard', 'Expert', 'Master', 'Extreme'];
   int _selectedIndex = 2;
 
   // Each difficulty gets its own Future so switching is instant after first load
@@ -310,6 +184,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = AuthService().currentUser;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 25, 20, 20),
       decoration: const BoxDecoration(
@@ -326,19 +201,28 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           // Avatar
-          Container(
-            width: 65,
-            height: 65,
-            padding: const EdgeInsets.all(2.5),
-            child: ClipOval(
-              child: profile.avatarUrl != null
-                  ? Image.network(
-                      profile.avatarUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _InitialsAvatar(name: profile.name),
-                    )
-                  : Image.asset("assets/images/403024_avatar_boy_male_user_young_icon.png", width: 20, height: 20,),
+          InkWell(
+            onTap: () {
+              if (user != null) {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage()));
+                } else {
+                   Navigator.push(context, MaterialPageRoute(builder: (context) => SyncDataPage()));
+                }
+            },
+            child: Container(
+              width: 65,
+              height: 65,
+              padding: const EdgeInsets.all(2.5),
+              child: ClipOval(
+                child: profile.avatarUrl != null
+                    ? Image.network(
+                        profile.avatarUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _InitialsAvatar(name: profile.name),
+                      )
+                    : Image.asset("assets/images/403024_avatar_boy_male_user_young_icon.png", width: 20, height: 20,),
+              ),
             ),
           ),
 
@@ -346,28 +230,37 @@ class _Header extends StatelessWidget {
 
           // Name / username
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  profile.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A2B3C),
-                    letterSpacing: -0.2,
+            child: InkWell(
+              onTap: () {
+                if (user != null) {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage()));
+                } else {
+                   Navigator.push(context, MaterialPageRoute(builder: (context) => SyncDataPage()));
+                }
+                },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    profile.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A2B3C),
+                      letterSpacing: -0.2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  profile.username,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[500],
+                  const SizedBox(height: 2),
+                  Text(
+                    profile.email,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[500],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -464,55 +357,58 @@ class _DifficultyChip extends StatelessWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const Text(
-              'Select Difficulty',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A2B3C),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...List.generate(difficulties.length, (i) {
-              final selected = i == selectedIndex;
-              return ListTile(
-                onTap: () {
-                  Navigator.pop(context);
-                  onChanged(i);
-                },
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                tileColor: selected
-                    ? const Color(0xFF3D5A80).withOpacity(0.08)
-                    : null,
-                title: Text(
-                  difficulties[i],
-                  style: TextStyle(
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected
-                        ? const Color(0xFF3D5A80)
-                        : const Color(0xFF1A2B3C),
+              ),
+              const Text(
+                'Select Difficulty',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A2B3C),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...List.generate(difficulties.length, (i) {
+                final selected = i == selectedIndex;
+                return ListTile(
+                  onTap: () {
+                    Navigator.pop(context);
+                    onChanged(i);
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-                trailing: selected
-                    ? const Icon(Icons.check_rounded, color: Color(0xFF3D5A80))
-                    : null,
-              );
-            }),
-          ],
+                  tileColor: selected
+                      ? const Color(0xFF3D5A80).withOpacity(0.08)
+                      : null,
+                  title: Text(
+                    difficulties[i],
+                    style: TextStyle(
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected
+                          ? const Color(0xFF3D5A80)
+                          : const Color(0xFF1A2B3C),
+                    ),
+                  ),
+                  trailing: selected
+                      ? const Icon(Icons.check_rounded, color: Color(0xFF3D5A80))
+                      : null,
+                );
+              }),
+            ],
+          ),
         ),
       ),
     );
@@ -809,3 +705,112 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
+
+
+class DifficultyStats {
+  final int gamesPlayed;
+  final int gamesWon;
+  final int gamesLost;
+  final int winStreaks;
+  final int winWithNoMistakes;
+  final double winRate; // 0.0 – 1.0
+  final int bestTimeSeconds; // 0 = no record
+  final int highScore;
+
+  const DifficultyStats({
+    this.gamesPlayed = 0,
+    this.gamesWon = 0,
+    this.gamesLost = 0,
+    this.winStreaks = 0,
+    this.winWithNoMistakes = 0,
+    this.winRate = 0,
+    this.bestTimeSeconds = 0,
+    this.highScore = 0,
+  });
+
+  // ── SharedPreferences key prefix ────────────────────────────────────────────
+  static String _key(String difficulty, String field) =>
+      'stats_${difficulty.toLowerCase()}_$field';
+
+  /// Save to SharedPreferences (called after every completed game).
+  Future<void> saveLocally(String difficulty) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_key(difficulty, 'gamesPlayed'), gamesPlayed);
+    await prefs.setInt(_key(difficulty, 'gamesWon'), gamesWon);
+    await prefs.setInt(_key(difficulty, 'gamesLost'), gamesLost);
+    await prefs.setInt(_key(difficulty, 'winStreaks'), winStreaks);
+    await prefs.setInt(
+      _key(difficulty, 'winWithNoMistakes'),
+      winWithNoMistakes,
+    );
+    await prefs.setDouble(_key(difficulty, 'winRate'), winRate);
+    await prefs.setInt(_key(difficulty, 'bestTimeSeconds'), bestTimeSeconds);
+    await prefs.setInt(_key(difficulty, 'highScore'), highScore);
+  }
+
+  /// Load from SharedPreferences (offline fallback).
+  static Future<DifficultyStats> loadLocally(String difficulty) async {
+    final prefs = await SharedPreferences.getInstance();
+    final played = prefs.getInt(_key(difficulty, 'gamesPlayed')) ?? 0;
+    final won = prefs.getInt(_key(difficulty, 'gamesWon')) ?? 0;
+    final lost = prefs.getInt(_key(difficulty, 'gamesLost')) ?? 0;
+    final rate = played > 0 ? won / played : 0.0;
+    return DifficultyStats(
+      gamesPlayed: played,
+      gamesWon: won,
+      gamesLost: lost,
+      winStreaks: prefs.getInt(_key(difficulty, 'winStreaks')) ?? 0,
+      winWithNoMistakes:
+          prefs.getInt(_key(difficulty, 'winWithNoMistakes')) ?? 0,
+      winRate: prefs.getDouble(_key(difficulty, 'winRate')) ?? rate,
+      bestTimeSeconds: prefs.getInt(_key(difficulty, 'bestTimeSeconds')) ?? 0,
+      highScore: prefs.getInt(_key(difficulty, 'highScore')) ?? 0,
+    );
+  }
+
+  /// Load from Firestore (online, signed-in users).
+  ///
+  /// Firestore structure:
+  ///   users/{uid}/stats/{difficulty}   (document per difficulty)
+  ///     gamesPlayed     : number
+  ///     gamesWon        : number
+  ///     gamesLost       : number
+  ///     winStreaks       : number
+  ///     winWithNoMistakes : number
+  ///     winRate         : number  (0.0 – 1.0)
+  ///     bestTimeSeconds : number
+  ///     highScore       : number
+  static Future<DifficultyStats> loadFromFirestore(
+    String uid,
+    String difficulty,
+  ) async {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('stats')
+        .doc(difficulty.toLowerCase())
+        .get();
+
+    if (!doc.exists) return const DifficultyStats();
+    final d = doc.data()!;
+    return DifficultyStats(
+      gamesPlayed: (d['gamesPlayed'] as num?)?.toInt() ?? 0,
+      gamesWon: (d['gamesWon'] as num?)?.toInt() ?? 0,
+      gamesLost: (d['gamesLost'] as num?)?.toInt() ?? 0,
+      winStreaks: (d['winStreaks'] as num?)?.toInt() ?? 0,
+      winWithNoMistakes: (d['winWithNoMistakes'] as num?)?.toInt() ?? 0,
+      winRate: (d['winRate'] as num?)?.toDouble() ?? 0,
+      bestTimeSeconds: (d['bestTimeSeconds'] as num?)?.toInt() ?? 0,
+      highScore: (d['highScore'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  String get formattedBestTime {
+    if (bestTimeSeconds == 0) return '--:--';
+    final m = (bestTimeSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (bestTimeSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  String get formattedWinRate => '${(winRate * 100).toStringAsFixed(0)}%';
+}

@@ -64,6 +64,7 @@ String formatTime(int seconds) {
 }
 
 
+
 Widget buildBadgeItem(String title, String subtitle, bool unlocked) {
     return Container(
       decoration: BoxDecoration(

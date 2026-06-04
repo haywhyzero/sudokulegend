@@ -8,7 +8,8 @@ class LeaderboardEntry {
   final String displayName;
   final int score;
   final String difficulty;
-  final String? avatarUrl; // optional network avatar
+  final String? avatarUrl;
+  final bool hasAllBadges;
 
   const LeaderboardEntry({
     required this.userId,
@@ -16,16 +17,21 @@ class LeaderboardEntry {
     required this.score,
     required this.difficulty,
     this.avatarUrl,
+    this.hasAllBadges = false,
   });
 
   factory LeaderboardEntry.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
+    final badges = d['badges'] as List? ?? [];
+    final hasAllBadges = badges.contains('sudoku_legend');
+
     return LeaderboardEntry(
       userId: doc.id,
       displayName: d['displayName'] as String? ?? 'Anonymous',
       score: (d['score'] as num?)?.toInt() ?? 0,
       difficulty: d['difficulty'] as String? ?? 'medium',
       avatarUrl: d['avatarUrl'] as String?,
+      hasAllBadges: hasAllBadges,
     );
   }
 }
@@ -507,16 +513,27 @@ class _LeaderboardRow extends StatelessWidget {
 
             // ── Name ────────────────────────────────────────────
             Expanded(
-              child: Text(
-                entry.displayName,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isCurrentUser || rank <= 3
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                  color: const Color(0xFF1A2B3C),
-                ),
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.displayName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isCurrentUser || rank <= 3
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: const Color(0xFF1A2B3C),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (entry.hasAllBadges)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Text('👑', style: TextStyle(fontSize: 12)),
+                    ),
+                ],
               ),
             ),
 

@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:sudokulegend/Models/state%20management/game_persistent.dart';
@@ -5,10 +7,18 @@ import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
 import 'package:sudokulegend/Screens/pages/game/game_page.dart';
 import 'package:sudokulegend/main.dart';
 
-class GameResultContent extends ConsumerWidget {
+class GameResultContent extends ConsumerStatefulWidget {
   const GameResultContent({
     super.key,
+    required this.isChallenge,
   });
+
+  final bool isChallenge;
+
+  @override
+  ConsumerState<GameResultContent> createState() => _GameResultContentState();
+}
+class _GameResultContentState extends ConsumerState<GameResultContent> {
 
   String _formatTime(int seconds) {
     final int hours = (seconds ~/ 3600);
@@ -19,13 +29,67 @@ class GameResultContent extends ConsumerWidget {
     return "$h$m:$s";
   }
 
+  void _newGame() async {
+
+    final newGameSlotNo = await SudokuStorageService.instance.getAndIncrementGameSlotNumber();
+    final gameData = ref.read(saveCompletedGameProvider);
+    final difficulty = gameData['level'] ?? 'Medium';
+    final slotNo = gameData['slotNo'] ?? newGameSlotNo;
+    final day = gameData['day'] ?? DateTime.now().day;
+     final difficulties = ['Easy', 'Medium', 'Hard', 'Expert', 'Master', 'Extreme'];
+    final randomDifficulty = difficulties[DateTime.now().microsecond % difficulties.length];
+
+
+    if (widget.isChallenge) {
+      await SudokuStorageService.instance.deleteGame(slot: "daily_challenge_active");
+      ref.read(saveCompletedGameProvider.notifier).state = {};
+      Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) =>
+            GamePage(level: randomDifficulty, isContd: false, slotNo: slotNo, challengeDay: day, isDailyChallenge: true,),
+      ),
+    );
+    } else {
+      await SudokuStorageService.instance.deleteActiveGame();
+      ref.read(saveCompletedGameProvider.notifier).state = {};
+      Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) =>
+            GamePage(level: difficulty, isContd: false, slotNo: newGameSlotNo, isDailyChallenge: false,),
+      ),
+    );
+    }
+  }
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final gameData = ref.watch(saveCompletedGameProvider);
-    final difficulty = gameData['level'];
-    final time = _formatTime(gameData['secondsElapsed']).toString();
-    final score = gameData['score'].toString();
-    final mistakes = gameData['mistakes'].toString();
+
+    if (gameData.isEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('No game data available'),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const MainScreen()),
+                ),
+                child: const Text('Back To Home'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final difficulty = gameData['level'] ?? 'Medium';
+    final time = _formatTime(gameData['secondsElapsed'] ?? 0);
+    final score = (gameData['score'] ?? 0).toString();
+    final mistakes = (gameData['mistakes'] ?? 0).toString();
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       extendBodyBehindAppBar: true,
@@ -79,7 +143,7 @@ class GameResultContent extends ConsumerWidget {
                   SizedBox(height: 14),
                   _RowItem(label: "Mistakes", value: mistakes),
                   SizedBox(height: 14),
-                  _RowItem(label: "Ranking", value: "3rd >", boldValue: true),
+                if (!widget.isChallenge)  _RowItem(label: "Ranking", value: "3rd >", boldValue: true),
                 ],
               ),
             ),
@@ -102,15 +166,7 @@ class GameResultContent extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   elevation: 2,
                 ),
-                onPressed: () async {
-                   final newGameSlotNo = await SudokuStorageService.instance.getAndIncrementGameSlotNumber();
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          GamePage(level: difficulty, isContd: false, slotNo: newGameSlotNo,),
-                    ),
-                  );
-                },
+                onPressed: _newGame,
                 child: const Text(
                   "New Game",
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),

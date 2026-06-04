@@ -33,7 +33,7 @@ class _SplashScreenState extends State<SplashScreen> {
             width: 90,
             height: 90,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           const Text(
             'SUDOKU LEGEND',
             style: TextStyle(

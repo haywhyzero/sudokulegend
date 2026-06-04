@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sudokulegend/Widgets/svg_icon.dart';
 import 'package:sudokulegend/Widgets/helper.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sudokulegend/Models/auth_service.dart';
+import 'package:sudokulegend/Models/state%20management/profile_provider.dart';
 
-class SyncDataPage extends StatelessWidget {
+class SyncDataPage extends ConsumerWidget {
   const SyncDataPage({super.key}); 
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -59,11 +60,26 @@ class SyncDataPage extends StatelessWidget {
                     try {
                       final userCredential = await AuthService().signInWithGoogle();
                       if (userCredential != null) {
-                         debugPrint("User signed in: ${userCredential.user?.displayName}");
-                         Navigator.pop(context); // Go back after successful login
+                        final user = userCredential.user;
+                        if (user != null && context.mounted) {
+                          final displayName = user.displayName ?? 'User';
+                          final email = user.email ?? '';
+                          final username = email.split('@').first;
+
+                          await ref.read(profileProvider.notifier).updateProfile(
+                            name: displayName,
+                            username: username,
+                            email: email,
+                          );
+
+                          debugPrint("User signed in: $displayName");
+                           if (context.mounted) Navigator.pop(context);
+                        }
                       }
                     } catch (e) {
-                      showSnackBar(context: context, message: "Login failed: $e");
+                      if (context.mounted) {
+                        showSnackBar(context: context, message: "Login failed: $e");
+                      }
                       debugPrint("error: $e");
                     }
 
@@ -82,7 +98,7 @@ class SyncDataPage extends StatelessWidget {
                 onTap: () {
                   showSnackBar(
                     context: context,
-                    message: "Facebook not configured"
+                    message: "Facebook not configured yet!"
                   );
                 },
               ),
@@ -99,7 +115,7 @@ class SyncDataPage extends StatelessWidget {
                 onTap: () {
                   showSnackBar(
                     context: context,
-                    message: "Apple not configure"
+                    message: "Apple not configured yet!"
                   );
                 },
               ),

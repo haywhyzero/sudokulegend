@@ -240,7 +240,7 @@ class _GamePageState extends ConsumerState<GamePage>
 
   Future<void> _initAudio() async {
     _audioPlayer = AudioPlayer();
-    try { // Todo: download Audio
+    try { // TODO: Fix: Audio not loading from asset
       await _audioPlayer.setAsset('assets/audios/correct.mp3');
     } catch (e) {
       debugPrint("Error loading audio: $e");
@@ -321,16 +321,17 @@ class _GamePageState extends ConsumerState<GamePage>
 
   int score() {
     int sc = Random().nextInt(50) + 50;
+    int rand = Random().nextInt(100);
     if (streakCombo >= 30) {
-      sc = levelScore[widget.level]! * 2;
+      sc = levelScore[widget.level]! * 2 + rand;
     } else if (streakCombo >= 15) {
-      sc = levelScore[widget.level]! * 2;
+      sc = levelScore[widget.level]! * 2 + rand;
     } else if (streakCombo >= 10) {
-      sc = levelScore[widget.level]! * 2;
+      sc = levelScore[widget.level]! * 2 + rand;
     } else if (streakCombo >= 8) {
-      sc = levelScore[widget.level]! * 2;
+      sc = levelScore[widget.level]! * 2 + rand;
     } else if (streakCombo >= 5) {
-      sc = levelScore[widget.level]! * 2;
+      sc = levelScore[widget.level]! * 2 + rand;
     }
     return sc;
   }
@@ -390,6 +391,8 @@ class _GamePageState extends ConsumerState<GamePage>
   void _placeNumber(int number) {
     if (_selectedCellIndex == null || _isPaused) return;
     if (_board[_selectedCellIndex!].isInitial) return;
+    if (_board[_selectedCellIndex!].value != null) return;
+
 
     final row = _selectedCellIndex! ~/ 9;
     final col = _selectedCellIndex! % 9;
@@ -410,8 +413,9 @@ class _GamePageState extends ConsumerState<GamePage>
         final correctValue = _solution[row][col];
         final isCorrect = number == correctValue;
 
-        if (_board[_selectedCellIndex!].value != null) _board[_selectedCellIndex!].value = number;
+        // if (_board[_selectedCellIndex!].value != null) _board[_selectedCellIndex!].value = number;
 
+      
         final settings = ref.read(settingsProvider);
 
         _board[_selectedCellIndex!].value = number;
@@ -436,8 +440,9 @@ class _GamePageState extends ConsumerState<GamePage>
             _audioPlayer.seek(Duration.zero);
             _audioPlayer.play();
           }
-          _score += score();
-          showScorePopup(row, col, score());
+          final sc = score();
+          _score += sc;
+          showScorePopup(row, col, sc);
           _isUndo = true;
           streakCombo += 1;
           _checkCompletionHighlight(_selectedCellIndex!);
@@ -505,6 +510,7 @@ class _GamePageState extends ConsumerState<GamePage>
                   ),
                   const SizedBox(height: 8),
                   _buildTopTool("$_score", "Score"),
+                  if (widget.isDailyChallenge) _buildTopTool("${widget.challengeDay}", "Challenge Day"),
                 ],
               ),
             ),
@@ -673,7 +679,7 @@ class _GamePageState extends ConsumerState<GamePage>
     );
   }
 
-  void _checkWin() {
+  void _checkWin() async {
     bool allFilled = true;
     bool allCorrect = true;
 
@@ -693,20 +699,18 @@ class _GamePageState extends ConsumerState<GamePage>
     if (allFilled && allCorrect) {
       _timer?.cancel();
       _isPaused = true;
-      _saveCompletedGame();
-      SudokuStorageService.instance.deleteActiveGame();
-      Future.microtask(() {
-        if (mounted) ref.read(saveGameProvider.notifier).state = {};
-      });
+      await _saveCompletedGame();
+      // SudokuStorageService.instance.deleteActiveGame();
       
       if (widget.isDailyChallenge) {
         _saveToAchievements();
-        NotificationService().markTodayAsPlayed();
+        if (widget.challengeDay == DateTime.now().day) NotificationService().markTodayAsPlayed();
+        await SudokuStorageService.instance.deleteGame(slot: "daily_challenge_active");
       }
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => GameResultContent()),
+        MaterialPageRoute(builder: (context) => GameResultContent(isChallenge: widget.isDailyChallenge,)),
       );
     }
   }
@@ -748,7 +752,7 @@ class _GamePageState extends ConsumerState<GamePage>
     // Badge logic milestones
     final bool isSpeedDemon = _secondsElapsed < 300; // < 5 minutes
     final bool isPerfectGame = _mistakes == 0;
-    final bool isHighScorer = _score > 1000;
+    final bool isHighScorer = _score > 30000;
     final bool isMaster = widget.level == 'Expert' || widget.level == 'Master' || widget.level == 'Extreme';
 
     final achievementData = {
@@ -773,7 +777,7 @@ class _GamePageState extends ConsumerState<GamePage>
     );
   }
 
-  void _saveCompletedGame() async {
+  Future<void> _saveCompletedGame() async {
     final gameData = {
       'board': _board.map((cell) => cell.toJson()).toList(),
       'solution': _solution,
@@ -786,26 +790,38 @@ class _GamePageState extends ConsumerState<GamePage>
       'isCompleted': true,
       'day': widget.challengeDay,
     };
+
+    if (widget.isDailyChallenge) {
+      final now = DateTime.now();
+      gameData['isDailyChallenge'] = true;
+      gameData['dailyDay'] = widget.challengeDay;
+      gameData['dailyMonth'] = now.month;
+      gameData['dailyYear'] = now.year;
+    }
+
     await SudokuStorageService.instance.saveGame(
       slot: "slot_${widget.slotNo}",
       data: gameData,
     );
+    ref.read(saveCompletedGameProvider.notifier).state = gameData;
+
 
     // Check for badge achievements
     final badgeService = BadgeService();
     await badgeService.loadBadges();
 
     final allGames = await SudokuStorageService.instance.listSavedGames();
-    final totalGames = allGames.where((g) => g['isCompleted'] == true).length;
+    final totalGames = allGames.where((g) => g['isCompleted'] == true && g['day'] != null).length;
     final expertGames = allGames
-        .where((g) => g['isCompleted'] == true && g['level'] == 'Expert')
+        .where((g) => g['isCompleted'] == true && g['level'] == 'Expert' && g['day'] != null)
         .length;
     final extremeGames = allGames
-        .where((g) => g['isCompleted'] == true && g['level'] == 'Extreme')
+        .where((g) => g['isCompleted'] == true && g['level'] == 'Extreme' && g['day'] != null)
         .length;
     final zeroMistakeGames = allGames
-        .where((g) => g['isCompleted'] == true && (g['mistakes'] ?? 0) == 0)
+        .where((g) => g['isCompleted'] == true && (g['mistakes'] ?? 0) == 0 && g['day'] != null)
         .length;
+
 
     final newBadges = await badgeService.checkAchievements(
       difficulty: widget.level,
@@ -814,12 +830,13 @@ class _GamePageState extends ConsumerState<GamePage>
       hintsUsed: _hintsUsed,
       usedPencilMode: false,
       totalGamesCompleted: totalGames,
-      expertGamesCompleted: expertGames,
+      expertGamesCompleted: expertGames, 
       extremeGamesCompleted: extremeGames,
       largeGridGamesCompleted: 0,
       zeroMistakeGames: zeroMistakeGames,
       consecutiveZeroMistakes: 0,
     );
+    ref.read(unlockedBadgesProvider.notifier).state = newBadges; 
 
     // Attempt to sync completed game to Firebase
     try {
@@ -828,9 +845,7 @@ class _GamePageState extends ConsumerState<GamePage>
       debugPrint('Error syncing game: $e');
     }
 
-    Future.microtask(() {
-      if (mounted) ref.read(saveCompletedGameProvider.notifier).state = gameData;
-    });
+  
   }
 
   void _saveGame() async {
@@ -854,7 +869,7 @@ class _GamePageState extends ConsumerState<GamePage>
     }
 
     Future.microtask(() {
-      if (mounted) ref.read(saveGameProvider.notifier).state = gameData;
+      if (mounted && !widget.isDailyChallenge) ref.read(saveGameProvider.notifier).state = gameData;
     });
   }
 
@@ -881,7 +896,9 @@ class _GamePageState extends ConsumerState<GamePage>
         _secondsElapsed = data['secondsElapsed'] ?? 0;
         _hintsUsed = data['hintsUsed'] ?? 0;
       });
-      _checkWin();
+      Future.microtask(() {
+         _checkWin();
+    });
     } else {
       _startNewGame();
     }
@@ -938,6 +955,7 @@ class _GamePageState extends ConsumerState<GamePage>
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
 
+    // print("sol: $_solution");
 
     // icon color so tool button stays consistent
     final toolIconColor =
@@ -1082,6 +1100,7 @@ class _GamePageState extends ConsumerState<GamePage>
                         icon: Svgicon(
                           assetName: "pencil",
                           color: toolPencilColor,
+                          isColor: true,
                         ),
                         onTap: () =>
                             setState(() => _isPencilMode = !_isPencilMode),
@@ -1375,8 +1394,8 @@ class _GamePageState extends ConsumerState<GamePage>
               ? Text(
                   '$number',
                   style: const TextStyle(
-                    fontSize: 9,
-                    color: Color.fromARGB(255, 226, 220, 220),
+                    fontSize: 10,
+                    color: Color.fromARGB(255, 126, 170, 221),
                     fontWeight: FontWeight.bold,
                   ),
                 )

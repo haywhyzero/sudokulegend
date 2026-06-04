@@ -22,6 +22,15 @@ class _DifficultiesState extends ConsumerState<Difficulties> {
   String selected = "Medium";
   bool _isloading = false;
 
+  @override
+  void initState() {
+    super.initState();
+      // Auto-select the highest unlocked if nothing selected yet
+  if (widget.arraydiff.any((l) => l.name == selected)) {
+    selected = widget.arraydiff.lastWhere((l) => !l.isLocked, orElse: () => widget.arraydiff[2]).name;
+  }
+  }
+
   Future<void> _newGame(String levelName) async { // Accept levelName
     setState(() => _isloading = true,);
     try {
@@ -87,6 +96,7 @@ class _DifficultiesState extends ConsumerState<Difficulties> {
                   final level = widget.arraydiff[index];
                   final isSelected = level.name == selected;
                   final isLocked = level.isLocked;
+                  final isGrid16 = level.name == '16x16';
 
 
                   return InkWell(
@@ -133,6 +143,18 @@ class _DifficultiesState extends ConsumerState<Difficulties> {
                                   
                               ],
                             ),
+                            if (isLocked && isGrid16) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                "feature is coming soon...",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                  fontStyle: FontStyle.italic
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                             if (isLocked) ...[
                               const SizedBox(height: 6),
                               Text(

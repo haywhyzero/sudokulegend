@@ -1,3 +1,5 @@
+// ignore_for_file: unrelated_type_equality_checks
+
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -59,6 +61,8 @@ void main() async {
   final notificationService = NotificationService();
   await notificationService.initialize();
   await notificationService.enableNotifications(); // Enable by default for challenges
+
+  await SudokuStorageService.instance.saveFirstUseDate();
 
   final savedData = (await SudokuStorageService.instance.loadActiveGame()) ??
       <String, dynamic>{};

@@ -5,12 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sudokulegend/Models/state%20management/game_persistent.dart';
+import 'package:sudokulegend/Models/state%20management/profile_provider.dart';
 import 'package:sudokulegend/Models/state%20management/settings_provider.dart';
 import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
 import 'package:sudokulegend/Screens/pages/settings/how_to_play.dart';
+import 'package:sudokulegend/Screens/pages/settings/privacy_policy.dart';
 import 'package:sudokulegend/Screens/pages/settings/profile_auth_gate.dart';
 import 'package:sudokulegend/Models/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sudokulegend/Screens/pages/settings/terms_of_service.dart';
 import 'package:sudokulegend/Widgets/svg_icon.dart';
 import 'package:sudokulegend/Widgets/themes.dart';
 
@@ -29,9 +32,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    FirebaseAuth.instance
-    .authStateChanges()
-    .listen((User? user) {
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
       if (mounted) {
         setState(() => showLogOut = user != null);
       }
@@ -108,35 +109,89 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  void showLogOutDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Log Out',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A2B3C),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Svgicon(assetName: "warning"),
+              const SizedBox(height: 16,),
+              Text("Are you sure you want to sign out? \n      You can log back in anytime"),
+              const SizedBox(height: 16,),
+
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await AuthService().signOut();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error signing out: $e')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF53698A),
+                  foregroundColor: Colors.white,
+                  
+                ),
+                child: Text('Log Out'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
-    final user = FirebaseAuth.instance.currentUser;
-    final name = user?.displayName ?? "Guest";
-    final email = user?.email ?? "login to edit profile";
+    final profile = ref.watch(profileProvider);
     final color = Theme.of(context).brightness == Brightness.light
-            ? Colors.black87
-            : Colors.white54;
+        ? Colors.black87
+        : Colors.white54;
     final mode = switch (settings.theme) {
-      AppTheme.light => Icon(
-        Icons.light_mode_outlined,
-        color: color,
-      ),
-      AppTheme.dark => Icon(
-        Icons.dark_mode_outlined,
-        color: color,
-      ),
-      AppTheme.system => Svgicon(
-        assetName: "Theme",
-      ),
+      AppTheme.light => Icon(Icons.light_mode_outlined, color: color),
+      AppTheme.dark => Icon(Icons.dark_mode_outlined, color: color),
+      AppTheme.system => Svgicon(assetName: "Theme"),
     };
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'Settings',
           style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
         ),
+        automaticallyImplyLeading: false,
       ),
       extendBodyBehindAppBar: true,
       body: ListView(
@@ -144,14 +199,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 8),
           // Profile Section
           _buildProfileTile(
-            name: name,
-            email: email,
-            photoUrl: user?.photoURL,
+            name: profile.name,
+            email: profile.email,
+            photoUrl: profile.avatarUrl,
           ),
           const SizedBox(height: 8),
           // How To Play
           _buildNavigationTile(
-            icon: Image.asset('assets/icons/howtoplay.png', width: 22, height: 22,),
+            icon: Image.asset(
+              'assets/icons/howtoplay.png',
+              width: 22,
+              height: 22,
+            ),
             title: 'How To Play',
             subtitle: 'Learn the rules and basics of Sudoku',
             onTap: () {
@@ -242,7 +301,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           // Region Highlight
           _buildSwitchTile(
-            icon: Image.asset('assets/icons/region.png', width: 22, height: 22, color: color),
+            icon: Image.asset(
+              'assets/icons/region.png',
+              width: 22,
+              height: 22,
+              color: color,
+            ),
             title: 'Region Highlight',
             subtitle: 'Highlight the selected row, column and box',
             value: settings.highlightRegion,
@@ -262,25 +326,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Container(
               color: Theme.of(context).scaffoldBackgroundColor,
               child: ListTile(
-                leading: Svgicon(assetName: "Logout", color: Colors.red,),
+                leading: Svgicon(assetName: "Logout", color: Colors.red),
                 title: const Text(
                   'Log Out',
                   style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w500, 
+                    fontWeight: FontWeight.w500,
                     color: Colors.red,
                   ),
                 ),
                 trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                onTap: () async {
-                  try {
-                    await AuthService().signOut();
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error signing out: $e')),
-                    );
-                  }
-                },
+                onTap: () => showLogOutDialog(context),
               ),
             ),
           const SizedBox(height: 32),
@@ -297,7 +353,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     TextButton(
-                      onPressed: () {},
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PrivacyPolicy(),
+                        ),
+                      ),
+                      // TODO: Add the Policy and Terms of Service write up
                       child: const Text(
                         'Privacy Policy',
                         style: TextStyle(color: Colors.blue, fontSize: 12),
@@ -308,7 +370,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     TextButton(
-                      onPressed: () {},
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TermsOfService(),
+                        ),
+                      ),
                       child: const Text(
                         'Terms of Service',
                         style: TextStyle(color: Colors.blue, fontSize: 12),
@@ -397,7 +464,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: SwitchListTile(
-        secondary:  icon,
+        secondary: icon,
         title: Text(
           title,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),

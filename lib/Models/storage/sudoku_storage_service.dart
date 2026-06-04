@@ -259,6 +259,14 @@ class SudokuStorageService {
     }
   }
 
+  Future<int> getFirstDateUse() async {
+    final prefs = await SharedPreferences.getInstance();
+    final date = prefs.getString('first_use_date') ?? '';
+    final dd = DateTime.parse(date);
+
+    return dd.month;
+  }
+
 
   // ════════════════════════════════════════════════════════════
   //  SECTION 4 — STATISTICS CALCULATION
@@ -273,8 +281,8 @@ class SudokuStorageService {
     final Map<String, List<Map<String, dynamic>>> groupedGames = {};
     for (var game in allGames) {
       // Only process games that have reached a final state (Won or Lost)
-      final bool isFinalState = (game['isCompleted'] == true || game['isGameOver'] == true);
-      if (isFinalState && game.containsKey('level')) {
+      // final bool isFinalState = (game['isCompleted'] == true || game['isCompleted'] == false);
+      if (game.containsKey('level')) {
         final String level = game['level'].toString();
         groupedGames.putIfAbsent(level, () => []).add(game);
       }
@@ -302,7 +310,7 @@ class SudokuStorageService {
 
       for (var game in games) {
         final bool isWon = game['isCompleted'] == true;
-        final bool isLost = game['isGameOver'] == true;
+        final bool isLost = game['isCompleted'] == false;
 
         if (isWon) {
           gamesWon++;
@@ -326,6 +334,8 @@ class SudokuStorageService {
         }
       }
 
+      // TODO: I stopped here. check if stats loads well and where is this Update being called?
+
       final stats = DifficultyStats(
         gamesPlayed: gamesPlayed,
         gamesWon: gamesWon,
@@ -333,7 +343,7 @@ class SudokuStorageService {
         winStreaks: maxStreak,
         winWithNoMistakes: winWithNoMistakes,
         winRate: gamesPlayed > 0 ? gamesWon / gamesPlayed : 0.0,
-        bestTimeSeconds: bestTimeSeconds,
+        bestTimeSeconds: bestTimeSeconds, 
         highScore: highScore,
       );
 
@@ -473,384 +483,4 @@ class SudokuStorageService {
     return max(100, baseScore + timeBonus - hintPenalty);
   }
 
-  // // ════════════════════════════════════════════════════════════
-  // //  SECTION 3 — LEADERBOARD WIDGET
-  // // ════════════════════════════════════════════════════════════
-
-  // /// Returns a ready-to-use leaderboard widget.
-  // ///
-  // /// Usage — embed anywhere (full screen, bottom sheet, dialog):
-  // /// ```dart
-  // /// // As a full page:
-  // /// Navigator.push(
-  // ///   context,
-  // ///   MaterialPageRoute(
-  // ///     builder: (_) => Scaffold(
-  // ///       body: SudokuStorageService.instance.buildLeaderboardWidget(
-  // ///         difficulty: 'hard',
-  // ///       ),
-  // ///     ),
-  // ///   ),
-  // /// );
-  // ///
-  // /// // Inside a bottom sheet:
-  // /// showModalBottomSheet(
-  // ///   context: context,
-  // ///   isScrollControlled: true,
-  // ///   builder: (_) => SizedBox(
-  // ///     height: MediaQuery.of(context).size.height * 0.75,
-  // ///     child: SudokuStorageService.instance.buildLeaderboardWidget(),
-  // ///   ),
-  // /// );
-  // /// ```
-  // Widget buildLeaderboardWidget({
-  //   String? difficulty,
-  //   int limit = 50,
-  //   String? highlightUserId,
-  // }) {
-  //   return _LeaderboardWidget(
-  //     service: this,
-  //     difficulty: difficulty,
-  //     limit: limit,
-  //     highlightUserId: highlightUserId,
-  //   );
-  // }
-
 }
-
-// ── Internal leaderboard widget ───────────────────────────────
-
-// class _LeaderboardWidget extends StatefulWidget {
-//   final SudokuStorageService service;
-//   final String? difficulty;
-//   final int limit;
-//   final String? highlightUserId;
-
-//   const _LeaderboardWidget({
-//     required this.service,
-//     this.difficulty,
-//     this.limit = 50,
-//     this.highlightUserId,
-//   });
-
-//   @override
-//   State<_LeaderboardWidget> createState() => _LeaderboardWidgetState();
-// }
-
-// class _LeaderboardWidgetState extends State<_LeaderboardWidget> {
-//   static const _difficulties = ['all', 'easy', 'medium', 'hard', 'expert'];
-
-//   late String _selectedDifficulty;
-//   late Future<List<LeaderboardEntry>> _future;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _selectedDifficulty = widget.difficulty ?? 'all';
-//     _loadData();
-//   }
-
-//   void _loadData() {
-//     final diff =
-//         _selectedDifficulty == 'all' ? null : _selectedDifficulty;
-//     _future = widget.service.fetchLeaderboard(
-//       difficulty: diff,
-//       limit: widget.limit,
-//     );
-//   }
-
-//   void _onDifficultyChanged(String diff) {
-//     setState(() {
-//       _selectedDifficulty = diff;
-//       _loadData();
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       children: [
-//         // ── Title bar ──────────────────────────────────────────
-//         Container(
-//           width: double.infinity,
-//           padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-//           decoration: const BoxDecoration(
-//             color: Color(0xFF3D5A80),
-//             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-//           ),
-//           child: const Text(
-//             '🏆  Leaderboard',
-//             style: TextStyle(
-//               color: Colors.white,
-//               fontSize: 20,
-//               fontWeight: FontWeight.w700,
-//               letterSpacing: 0.4,
-//             ),
-//           ),
-//         ),
-
-//         // ── Difficulty filter ──────────────────────────────────
-//         Container(
-//           color: const Color(0xFF3D5A80),
-//           padding: const EdgeInsets.only(bottom: 12, left: 12, right: 12),
-//           child: SingleChildScrollView(
-//             scrollDirection: Axis.horizontal,
-//             child: Row(
-//               children: _difficulties.map((d) {
-//                 final selected = d == _selectedDifficulty;
-//                 return Padding(
-//                   padding: const EdgeInsets.only(right: 8),
-//                   child: ChoiceChip(
-//                     label: Text(
-//                       d[0].toUpperCase() + d.substring(1),
-//                       style: TextStyle(
-//                         color: selected
-//                             ? const Color(0xFF3D5A80)
-//                             : Colors.white70,
-//                         fontWeight: FontWeight.w600,
-//                         fontSize: 12,
-//                       ),
-//                     ),
-//                     selected: selected,
-//                     selectedColor: Colors.white,
-//                     backgroundColor: const Color(0xFF4E6F96),
-//                     side: BorderSide.none,
-//                     onSelected: (_) => _onDifficultyChanged(d),
-//                   ),
-//                 );
-//               }).toList(),
-//             ),
-//           ),
-//         ),
-
-//         // ── Entry list ─────────────────────────────────────────
-//         Expanded(
-//           child: FutureBuilder<List<LeaderboardEntry>>(
-//             future: _future,
-//             builder: (context, snap) {
-//               if (snap.connectionState == ConnectionState.waiting) {
-//                 return const Center(
-//                   child: CircularProgressIndicator(
-//                     color: Color(0xFF3D5A80),
-//                   ),
-//                 );
-//               }
-
-//               if (snap.hasError) {
-//                 return Center(
-//                   child: Text(
-//                     'Failed to load leaderboard.\n${snap.error}',
-//                     textAlign: TextAlign.center,
-//                     style: const TextStyle(color: Colors.red),
-//                   ),
-//                 );
-//               }
-
-//               final entries = snap.data ?? [];
-
-//               if (entries.isEmpty) {
-//                 return const Center(
-//                   child: Text(
-//                     'No scores yet.\nBe the first! 🎯',
-//                     textAlign: TextAlign.center,
-//                     style: TextStyle(
-//                       fontSize: 16,
-//                       color: Color(0xFF3D5A80),
-//                       height: 1.6,
-//                     ),
-//                   ),
-//                 );
-//               }
-
-//               return ListView.separated(
-//                 padding: const EdgeInsets.symmetric(
-//                     vertical: 12, horizontal: 16),
-//                 itemCount: entries.length,
-//                 separatorBuilder: (_, __) => const SizedBox(height: 8),
-//                 itemBuilder: (_, i) => _LeaderboardRow(
-//                   rank: i + 1,
-//                   entry: entries[i],
-//                   isHighlighted:
-//                       entries[i].userId == widget.highlightUserId,
-//                 ),
-//               );
-//             },
-//           ),
-//         ),
-
-//         // ── Refresh ────────────────────────────────────────────
-//         Padding(
-//           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-//           child: OutlinedButton.icon(
-//             onPressed: () => setState(_loadData),
-//             icon: const Icon(Icons.refresh, size: 16),
-//             label: const Text('Refresh'),
-//             style: OutlinedButton.styleFrom(
-//               foregroundColor: const Color(0xFF3D5A80),
-//               side: const BorderSide(color: Color(0xFF3D5A80)),
-//               minimumSize: const Size.fromHeight(40),
-//             ),
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-// }
-
-// // ── Single leaderboard row ────────────────────────────────────
-
-// class _LeaderboardRow extends StatelessWidget {
-//   final int rank;
-//   final LeaderboardEntry entry;
-//   final bool isHighlighted;
-
-//   const _LeaderboardRow({
-//     required this.rank,
-//     required this.entry,
-//     this.isHighlighted = false,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final isMedal = rank <= 3;
-
-//     return Container(
-//       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-//       decoration: BoxDecoration(
-//         color: isHighlighted
-//             ? const Color(0xFFE8F0FE)
-//             : isMedal
-//                 ? const Color(0xFFFFFDE7)
-//                 : Colors.white,
-//         borderRadius: BorderRadius.circular(12),
-//         border: Border.all(
-//           color: isHighlighted
-//               ? const Color(0xFF3D5A80)
-//               : isMedal
-//                   ? const Color(0xFFFFD54F)
-//                   : const Color(0xFFE0E0E0),
-//           width: isHighlighted ? 1.5 : 1,
-//         ),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.04),
-//             blurRadius: 4,
-//             offset: const Offset(0, 2),
-//           ),
-//         ],
-//       ),
-//       child: Row(
-//         children: [
-//           // Rank / medal
-//           SizedBox(
-//             width: 32,
-//             child: Text(
-//               rank == 1
-//                   ? '🥇'
-//                   : rank == 2
-//                       ? '🥈'
-//                       : rank == 3
-//                           ? '🥉'
-//                           : '#$rank',
-//               style: TextStyle(
-//                 fontSize: rank <= 3 ? 20 : 13,
-//                 fontWeight: FontWeight.w700,
-//                 color: const Color(0xFF3D5A80),
-//               ),
-//             ),
-//           ),
-//           const SizedBox(width: 10),
-
-//           // Name + difficulty badge
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Text(
-//                   entry.displayName,
-//                   style: const TextStyle(
-//                     fontWeight: FontWeight.w600,
-//                     fontSize: 14,
-//                     color: Color(0xFF1A2B3C),
-//                   ),
-//                   overflow: TextOverflow.ellipsis,
-//                 ),
-//                 const SizedBox(height: 2),
-//                 _DifficultyBadge(difficulty: entry.difficulty),
-//               ],
-//             ),
-//           ),
-
-//           // Time
-//           Column(
-//             crossAxisAlignment: CrossAxisAlignment.end,
-//             children: [
-//               Text(
-//                 '${entry.score} pts',
-//                 style: const TextStyle(
-//                   fontWeight: FontWeight.w700,
-//                   fontSize: 14,
-//                   color: Color(0xFF3D5A80),
-//                 ),
-//               ),
-//               const SizedBox(height: 2),
-//               Row(
-//                 children: [
-//                   const Icon(Icons.timer_outlined,
-//                       size: 11, color: Colors.grey),
-//                   const SizedBox(width: 2),
-//                   Text(
-//                     entry.formattedTime,
-//                     style: const TextStyle(
-//                         fontSize: 11, color: Colors.grey),
-//                   ),
-//                 ],
-//               ),
-//             ],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-// class _DifficultyBadge extends StatelessWidget {
-//   final String difficulty;
-
-//   const _DifficultyBadge({required this.difficulty});
-
-//   Color get _color {
-//     switch (difficulty.toLowerCase()) {
-//       case 'easy':
-//         return Colors.green;
-//       case 'medium':
-//         return Colors.orange;
-//       case 'hard':
-//         return Colors.red;
-//       case 'expert':
-//         return Colors.purple;
-//       default:
-//         return Colors.grey;
-//     }
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-//       decoration: BoxDecoration(
-//         color: _color.withOpacity(0.12),
-//         borderRadius: BorderRadius.circular(4),
-//         border: Border.all(color: _color.withOpacity(0.4)),
-//       ),
-//       child: Text(
-//         difficulty[0].toUpperCase() + difficulty.substring(1),
-//         style: TextStyle(
-//           fontSize: 10,
-//           fontWeight: FontWeight.w600,
-//           color: _color,
-//         ),
-//       ),
-//     );
-//   }
-// }

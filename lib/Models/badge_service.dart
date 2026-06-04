@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -43,10 +45,13 @@ class BadgeService {
   BadgeService._internal();
 
   static const String _badgesKey = 'user_badges';
-  static const String _streakKey = 'daily_streak';
-  static const String _lastPlayDateKey = 'last_play_date';
-  static const String _gameCounts = 'game_counts';
-  static const String _personalBestKey = 'personal_best';
+  // static const String _streakKey = 'daily_streak';
+  // static const String _lastPlayDateKey = 'last_play_date';
+  // static const String _gameCounts = 'game_counts';
+  // static const String _personalBestKey = 'personal_best';
+
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
 
   final Map<String, Badge> _badges = {
     'speed_demon': Badge(id: 'speed_demon', name: 'Speed Demon', description: 'Complete in < 5 mins'),
@@ -88,6 +93,7 @@ class BadgeService {
       });
     }
   }
+  
 
   Future<void> _saveBadges() async {
     final prefs = await SharedPreferences.getInstance();
@@ -95,6 +101,26 @@ class BadgeService {
       _badges.map((key, badge) => MapEntry(key, badge.toJson()))
     );
     await prefs.setString(_badgesKey, badgesJson);
+  }
+
+
+  Future<void> _saveBadgesToFirebase() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        final badgeIds = _badges.entries
+            .where((e) => e.value.unlocked)
+            .map((e) => e.key)
+            .toList();
+        
+        await _firestore.collection('users').doc(user.uid).set({
+          'badges': badgeIds,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        print('Error saving badges to Firebase: $e');
+      }
+    }
   }
 
   Future<List<Badge>> checkAchievements({
@@ -245,6 +271,7 @@ class BadgeService {
 
     if (newBadges.isNotEmpty) {
       await _saveBadges();
+      await _saveBadgesToFirebase();
     }
 
     return newBadges;

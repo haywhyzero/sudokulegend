@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:sudokulegend/Models/badge_service.dart';
 import 'package:sudokulegend/Screens/pages/game/game_page.dart';
 import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
+import 'package:sudokulegend/Widgets/helper.dart';
 import 'package:sudokulegend/Widgets/menu_button.dart';
 import 'package:sudokulegend/Widgets/svg_icon.dart';
 import 'achievements_page.dart';
@@ -25,6 +27,10 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
   int? selectedDay;
   Map<String, dynamic>? activeDailyGame;
+  
+  final badges = BadgeService();
+  int totalBadges = 0;
+  int totalUnlocked = 0;
 
   @override
   void initState() {
@@ -34,6 +40,10 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   Future<void> _loadCompletedDays() async {
+    await badges.loadBadges();
+    final totalB = badges.getAllBadges().length;
+     final totalUn = badges.getUnlockedCount();
+    if (mounted) setState(() => isLoadingCompletedDays = true);
     try {
       final allGames = await SudokuStorageService.instance.listSavedGames();
       final completed = <int>{};
@@ -53,16 +63,21 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
       if (mounted) {
         setState(() {
+          totalBadges = totalB;
+          totalUnlocked = totalUn;
           completedDays = completed;
           isLoadingCompletedDays = false;
           // Select appropriate day on first load
-          selectedDay = completedDays.contains(todayDay)
-              ? (todayDay > 1 ? todayDay - 1 : 1)
-              : todayDay;
+          final now = DateTime.now();
+          if (currentMonth == now.month && currentYear == now.year) {
+            selectedDay = completedDays.contains(todayDay)
+                ? (todayDay > 1 ? todayDay - 1 : 1)
+                : todayDay;
+          }
         });
       }
     } catch (e) {
-      print("Error loading completed days: $e");
+      debugPrint("Error loading completed days: $e");
       if (mounted) {
         setState(() => isLoadingCompletedDays = false);
       }
@@ -73,19 +88,36 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     final data = await SudokuStorageService.instance.loadGame(
       slot: 'daily_challenge_active',
     );
+
     if (mounted) {
       setState(() {
-        activeDailyGame = data;
+        activeDailyGame = data; 
       });
     }
   }
 
   Future<void> _continueGame() async {
-    if (selectedDay == null || activeDailyGame == null) return;
+    if (selectedDay == null) return;
+    
+    // Extra safety check for future dates
+    final now = DateTime.now();
+    final isFuture = currentYear > now.year || 
+                    (currentYear == now.year && currentMonth > now.month) ||
+                    (currentYear == now.year && currentMonth == now.month && selectedDay! > now.day);
+    
+    if (isFuture) return;
+
+     // Get a new slot number
+    final newGameSlotNo = await SudokuStorageService.instance.getAndIncrementGameSlotNumber();
+
+    // Generate random difficulty
+    final difficulties = ['Easy', 'Medium', 'Hard', 'Expert', 'Master', 'Extreme'];
+    final randomDifficulty = difficulties[DateTime.now().microsecond % difficulties.length];
 
     final gameData = activeDailyGame!;
-    final level = gameData['level'] as String? ?? 'Easy';
-    final slotNo = gameData['slotNo'] as int? ?? 1;
+    final level = gameData['level'] as String? ?? randomDifficulty;
+    final slotNo = gameData['slotNo'] as int? ?? newGameSlotNo;
+    final contd = activeDailyGame == null ? false : true;
 
     if (!mounted) return;
 
@@ -93,7 +125,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
       MaterialPageRoute(
         builder: (context) => GamePage(
           level: level,
-          isContd: true,
+          isContd: contd,
           slotNo: slotNo,
           isDailyChallenge: true,
           challengeDay: selectedDay!,
@@ -102,8 +134,25 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     );
   }
 
-  Future<void> _restartGame() async {
-    if (selectedDay == null) return;
+  Future<void> _restartGame(BuildContext contx) async {
+    if (selectedDay == null || activeDailyGame == null) {
+      showSnackBar(
+        context: contx,
+        message: "No games to restart! Start a new game",
+        bgColor: Colors.red,
+        fgColor: Colors.white,
+        persist: false,
+      );
+    }
+    
+    // Extra safety check for future dates
+    final now = DateTime.now();
+    final isFuture = currentYear > now.year || 
+                    (currentYear == now.year && currentMonth > now.month) ||
+                    (currentYear == now.year && currentMonth == now.month && selectedDay! > now.day);
+    
+    if (isFuture) return;
+
 
     // Delete the current day's game if it exists
     await SudokuStorageService.instance.deleteGame(
@@ -117,8 +166,9 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     final difficulties = ['Easy', 'Medium', 'Hard', 'Expert', 'Master', 'Extreme'];
     final randomDifficulty = difficulties[DateTime.now().microsecond % difficulties.length];
 
+  
     if (!mounted) return;
-
+    
     setState(() {
       activeDailyGame = null;
     });
@@ -156,8 +206,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   String _formatElapsedTime() {
-    if (activeDailyGame == null) return "00:00:00";
-    final elapsed = (activeDailyGame?['elapsedSeconds'] as int?) ?? 0;
+    if (activeDailyGame == null) return "No active game";
+    final elapsed = (activeDailyGame?['secondsElapsed'] as int?) ?? 0;
     final hours = elapsed ~/ 3600;
     final minutes = (elapsed % 3600) ~/ 60;
     final seconds = elapsed % 60;
@@ -236,8 +286,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                       _buildBadgeIcon(),
                 ),
                 const SizedBox(width: 2),
-                const Text(
-                  '7/31',
+                Text(
+                  '$totalUnlocked/$totalBadges',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -303,6 +353,16 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   Widget _buildCalendarCard() {
+    final title =  activeDailyGame != null && activeDailyGame!['day'] == selectedDay 
+                      ? activeDailyGame!['isCompleted'] 
+                        ? "New Game" 
+                        : "Continue" 
+                      : "New Game";
+    final aubtitle = activeDailyGame != null && activeDailyGame!['day'] == selectedDay
+                ? activeDailyGame!['isCompleted']
+                    ? "▶ ${_formatElapsedTime()}"
+                    : "Resume: ${_formatElapsedTime()} - ${activeDailyGame!['level']}"
+                : "No active game";
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF3D5A80),
@@ -323,19 +383,18 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
               child: _buildCalendarGrid(),
             ),
           ),
-          // Buttons
+
+          // Buttons 
           MenuButton(
             color: Colors.transparent,
             isColor: true,
             isBorder: true,
             borderColor: Colors.white,
-            title: "Continue",
-            subtitle: activeDailyGame != null
-                ? "▶ ${_formatElapsedTime()}"
-                : "No active game",
+            title: title,
+            subtitle: aubtitle,
             height: 57,
             width: 300,
-            onTap: activeDailyGame != null ? _continueGame : null,
+            onTap: _continueGame,
           ),
           SizedBox(height: 6),
           MenuButton(
@@ -345,7 +404,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
             title: "Restart",
             height: 50,
             width: 300,
-            onTap: _restartGame,
+            onTap: () => _restartGame(context),
           ),
           SizedBox(height: 12),
         ],
@@ -368,14 +427,17 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => setState(() {
-              if (currentMonth > 1) {
-                currentMonth--;
-              } else {
-                currentMonth = 12;
-                currentYear--;
-              }
-            }),
+            onTap: () {
+              setState(() {
+                if (currentMonth > 1) {
+                  currentMonth--;
+                } else {
+                  currentMonth = 12;
+                  currentYear--;
+                }
+              });
+              _loadCompletedDays();
+            },
             child: Svgicon(assetName: "play_arrow_back"),
           ),
           GestureDetector(
@@ -391,6 +453,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                   currentYear++;
                 }
               });
+              _loadCompletedDays();
             },
             child: Svgicon(
               assetName: "play_arrow_forward",
@@ -456,19 +519,18 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   Widget _buildDayCell(int day) {
-    final isToday = day == todayDay;
-    final isCompleted = completedDays.contains(day);
-    final isSelected = day == selectedDay;
     final month = DateTime.now().month;
     final year = DateTime.now().year;
-    final isPrevMonth = currentMonth < month;
-    final isPrevYear = currentYear < year;
-    final isFutureDay = !isPrevMonth && !isPrevYear && day > todayDay;
+
+    final isToday = day == todayDay && currentMonth == month && currentYear == year;
+    final isCompleted = completedDays.contains(day);
+    final isSelected = day == selectedDay;
+    final isFutureDay = currentYear > year || 
+                        (currentYear == year && currentMonth > month) ||
+                        (currentYear == year && currentMonth == month && day > todayDay);
 
     return GestureDetector(
-      onTap: () {
-        setState(() => selectedDay = day);
-      },
+      onTap: isFutureDay ? null : () => setState(() => selectedDay = day),
       child: SizedBox(
         width: 38,
         height: 38,
@@ -557,7 +619,6 @@ class BadgePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gold = Paint()..color = const Color(0xFFFFB300);
-    final darkGold = Paint()..color = const Color(0xFFE65100);
 
     // Pentagon/shield shape
     final path = Path();
@@ -630,7 +691,7 @@ class TrophyPainter extends CustomPainter {
     final goldLight = const Color(0xFFFFD54F);
     final goldMid = const Color(0xFFFFB300);
     final goldDark = const Color(0xFFE65100);
-    final shadow = Colors.black.withOpacity(0.15);
+    Colors.black.withOpacity(0.15);
 
     final w = size.width;
     final h = size.height;
