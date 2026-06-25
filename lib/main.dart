@@ -21,7 +21,7 @@ import 'package:sudokulegend/Screens/pages/leaderboard/leaderboard_auth_gate.dar
 import 'package:sudokulegend/Screens/pages/settings/settings_page.dart';
 // import 'package:sudokulegend/Screens/pages/statistics/statistics_page.dart';
 import 'package:sudokulegend/Widgets/themes.dart';
-import 'package:sudokulegend/firebase_options.dart';
+import 'firebase_options.dart';
 import 'package:sudokulegend/splash_screen.dart';
  
 
@@ -95,9 +95,9 @@ class MyApp extends ConsumerWidget {
       title: 'Sudoku Legend',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.light().copyWith(
-         pageTransitionsTheme: const PageTransitionsTheme(builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+         pageTransitionsTheme: PageTransitionsTheme(builders: {
+          TargetPlatform.android: const CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
         }),
       ),
       darkTheme: darkMode(),

@@ -32,6 +32,7 @@ workflows:
           echo $IOS_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/ios/Runner/GoogleService-Info.plist 2>/dev/null || echo "iOS config skipped"
           echo "✅ Firebase files restored:"
           ls -la $FCI_BUILD_DIR/android/app/google-services.json
+          ls -la $FCI_BUILD_DIR/lib/firebase_options.dart
 
       - name: Flutter Pub Get
         script: flutter pub get
