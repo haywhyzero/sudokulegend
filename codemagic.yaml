@@ -2,7 +2,8 @@ workflows:
   flutter-build:
     name: Flutter Build
     environment:
-      flutter: 3.24.0   # Your fixed version
+      flutter: stable
+      # flutter: 3.24.0   # Your fixed version
       xcode: latest
 
     triggering:
