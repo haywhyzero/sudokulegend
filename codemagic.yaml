@@ -1,0 +1,39 @@
+workflows:
+  flutter-build:
+    name: Flutter Build
+    environment:
+      flutter: 3.24.0   # Your fixed version
+      xcode: latest
+
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: "main"
+          include: true
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $FLUTTER_ROOT/
+        - $HOME/.gradle/caches
+        - $HOME/Library/Caches/CocoaPods
+
+    scripts:
+      - name: Decode Firebase Configs
+        script: |
+          set -e
+          echo "🔄 Restoring Firebase config files..."
+          echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
+          echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/libs/firebase_options.dart
+          echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
+          echo $IOS_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/ios/Runner/GoogleService-Info.plist 2>/dev/null || echo "iOS config skipped"
+          echo "✅ Firebase files restored:"
+          ls -la $FCI_BUILD_DIR/android/app/google-services.json
+
+      - name: Flutter Pub Get
+        script: flutter pub get
+
+      - name: Build Android App Bundle
+        script: flutter build appbundle --release
