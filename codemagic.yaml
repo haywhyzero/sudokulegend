@@ -26,7 +26,7 @@ workflows:
           set -e
           echo "🔄 Restoring Firebase config files..."
           echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
-          echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/libs/firebase_options.dart
+          echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
           echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
           echo $IOS_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/ios/Runner/GoogleService-Info.plist 2>/dev/null || echo "iOS config skipped"
           echo "✅ Firebase files restored:"
