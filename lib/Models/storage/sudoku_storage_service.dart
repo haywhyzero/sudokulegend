@@ -5,7 +5,7 @@
 //    2. Displaying a leaderboard widget
 //    3. Syncing leaderboard data to/from Cloud Firestore
 
-//
+// TODO: confirm if firebase DB is created
 //  ─────────────────────────────────────────────────────────────
 //  CLOUD FIRESTORE SETUP (read carefully before deploying)
 //  ─────────────────────────────────────────────────────────────
@@ -56,7 +56,6 @@
 // ============================================================
 
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -250,7 +249,17 @@ class SudokuStorageService {
     return gamesArray;
   }
 
+  // Delete all game data locally
+  Future<void> deleteAllData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    await prefs.reload();
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    await _firestore.collection('users').doc(uid).delete();
 
+  }
+
+  // Save the first date the app was used
   Future<void> saveFirstUseDate() async {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getString('first_use_date') == null) {
@@ -334,7 +343,7 @@ class SudokuStorageService {
         }
       }
 
-      // TODO: I stopped here. check if stats loads well and where is this Update being called?
+      // 
 
       final stats = DifficultyStats(
         gamesPlayed: gamesPlayed,
@@ -436,11 +445,12 @@ class SudokuStorageService {
       final completedGames = allGames.where((game) => game['isCompleted'] == true).toList();
 
       for (final game in completedGames) {
-        final score = _calculateScore(
-          difficulty: game['difficulty'] as String,
-          elapsedSeconds: game['elapsedSeconds'] as int,
-          hintsUsed: game['hintsUsed'] as int,
-        );
+        // final score = _calculateScore(
+        //   difficulty: game['difficulty'] as String,
+        //   elapsedSeconds: game['elapsedSeconds'] as int,
+        //   hintsUsed: game['hintsUsed'] as int,
+        // );
+        final score = game['score'];
 
         final entry = LeaderboardEntry(
           userId: user.uid,
@@ -461,26 +471,26 @@ class SudokuStorageService {
   }
 
   /// Calculate score based on difficulty, time, and hints used.
-  int _calculateScore({
-    required String difficulty,
-    required int elapsedSeconds,
-    required int hintsUsed,
-  }) {
-    const difficultyMultiplier = {
-      'Easy': 1,
-      'Medium': 2,
-      'Hard': 3,
-      'Expert': 4,
-      'Master': 5,
-      'Extreme': 6,
-    };
+  // int _calculateScore({
+  //   required String difficulty,
+  //   required int elapsedSeconds,
+  //   required int hintsUsed,
+  // }) {
+  //   const difficultyMultiplier = {
+  //     'Easy': 1,
+  //     'Medium': 2,
+  //     'Hard': 3,
+  //     'Expert': 4,
+  //     'Master': 5,
+  //     'Extreme': 6,
+  //   };
 
-    final multiplier = difficultyMultiplier[difficulty] ?? 1;
-    final baseScore = 1000 * multiplier;
-    final timeBonus = max(0, 500 - (elapsedSeconds ~/ 10));
-    final hintPenalty = hintsUsed * 100;
+  //   final multiplier = difficultyMultiplier[difficulty] ?? 1;
+  //   final baseScore = 1000 * multiplier;
+  //   final timeBonus = max(0, 500 - (elapsedSeconds ~/ 10));
+  //   final hintPenalty = hintsUsed * 100;
 
-    return max(100, baseScore + timeBonus - hintPenalty);
-  }
+  //   return max(100, baseScore + timeBonus - hintPenalty);
+  // }
 
 }

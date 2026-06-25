@@ -158,12 +158,14 @@ class GameOver extends StatelessWidget {
                 ),
                 onPressed: () async {
                    final newGameSlotNo = await SudokuStorageService.instance.getAndIncrementGameSlotNumber();
-                  Navigator.of(context).pushReplacement(
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
                       builder: (context) =>
                           GamePage(level: difficulty, isContd: false, slotNo: newGameSlotNo,),
                     ),
                   );
+                  }
                 },
                 child: const Text(
                   "New Game",

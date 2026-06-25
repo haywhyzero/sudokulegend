@@ -1,5 +1,5 @@
 name: sudokulegend
-description: "A new Flutter project."
+description: "A sudoku game with a twist! Solve puzzles, earn trophies, and compete with friends. Can you become the ultimate Sudoku Legend?"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -93,7 +93,6 @@ flutter:
     - assets/icons/
     - assets/icons/how_to_play.svg
     - assets/icons/google_logo.png
-    - assets/icons/warning.svg
     - .env
 
   # The following line ensures that the Material Icons font is

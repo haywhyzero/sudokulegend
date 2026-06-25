@@ -623,16 +623,14 @@ class _CountryField extends StatelessWidget {
                           padding: const EdgeInsets.fromLTRB(0, 0, 6, 0),
                           child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              isUnlocked
-                                  ? Icons.check_circle_rounded
-                                  : Icons.keyboard_arrow_down,
+                            child: isUnlocked ? Icon(
+                              Icons.check_circle_rounded,
                               key: ValueKey(isUnlocked),
                               size: 20,
                               color: isUnlocked
                                   ? const Color(0xFF3D5A80)
                                   : Colors.grey[400],
-                            ),
+                            ) : Image.asset("assets/icons/Direction.png", key: ValueKey(isUnlocked), errorBuilder: (context, error, stackTrace) => Icon(Icons.keyboard_arrow_down),),
                           ),
                         ),
                       ],

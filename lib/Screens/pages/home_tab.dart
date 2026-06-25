@@ -51,8 +51,6 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     await SudokuStorageService.instance.updateStatistics();
     await requestPermissions();
 
-    final test = await SudokuStorageService.instance.getFirstDateUse();
-    print("test: $test");
   }
 
 
@@ -65,25 +63,22 @@ class _HomeTabState extends ConsumerState<HomeTab> {
 
   Future<void> requestPermissions() async {
     try {
-      // Camera
-    var cameraStatus = await Permission.camera.request();
-    // Storage / Gallery
-    var storageStatus = await Permission.photos.request();
-    // Notifications 
-    var notificationStatus = await Permission.notification.request();
+      var cameraStatus = await Permission.camera.request();
+      var storageStatus = await Permission.photos.request();
+      var audioStatus = await Permission.audio.request();
+      var notificationStatus = await Permission.notification.request();
 
-    if (cameraStatus.isGranted && storageStatus.isGranted && notificationStatus.isGranted) {
-      ref.read(isPermissionProvider.notifier).state = true;
-    } else if (cameraStatus.isDenied || storageStatus.isDenied || notificationStatus.isDenied) {
-      ref.read(isPermissionProvider.notifier).state = false;
-      ref.read(settingsProvider.notifier).toggleNotification(false);
-    } else if (cameraStatus.isPermanentlyDenied || notificationStatus.isPermanentlyDenied) {
-      openAppSettings();
-    }
+      if (cameraStatus.isGranted && storageStatus.isGranted && audioStatus.isGranted && notificationStatus.isGranted) {
+        ref.read(isPermissionProvider.notifier).state = true;
+      } else if (cameraStatus.isDenied || storageStatus.isDenied || audioStatus.isDenied || notificationStatus.isDenied) {
+        ref.read(isPermissionProvider.notifier).state = false;
+        ref.read(settingsProvider.notifier).toggleNotification(false);
+      } else if (cameraStatus.isPermanentlyDenied || audioStatus.isPermanentlyDenied || notificationStatus.isPermanentlyDenied) {
+        openAppSettings();
+      }
     } catch (e) {
       debugPrint("e: $e");
     }
-    
   }
 
 
@@ -172,17 +167,17 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                             SizedBox(height: 40,),
                             // TODO: change logo image to the updated one
                             Image.asset("assets/images/logo.png", width: 120, height: 120,),
-                            SizedBox(height: 10,),
-                            Text(
-                          "SUDOKU LEGEND",
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 4,
-                            height: 1,
-                          ),
-                        ),
+                        //     SizedBox(height: 10,),
+                        //     Text(
+                        //   "SUDOKU LEGEND",
+                        //   style: TextStyle(
+                        //     fontSize: 26,
+                        //     fontWeight: FontWeight.w900, 
+                        //     color: Colors.white,
+                        //     letterSpacing: 4,
+                        //     height: 1,
+                        //   ),
+                        // ),
                           ],
                         ),
                       ),

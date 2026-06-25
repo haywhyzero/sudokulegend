@@ -151,7 +151,6 @@ class _LeaderboardPageState extends State<LeaderboardPage>
           ],
         ),
       ),
-      bottomNavigationBar: const _BottomNav(currentIndex: 1),
     );
   }
 }
@@ -487,8 +486,7 @@ class _LeaderboardRow extends StatelessWidget {
                           child: Image.network(
                             entry.avatarUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                _DefaultAvatar(name: entry.displayName),
+                            errorBuilder: (context, error, stackTrace) => _DefaultAvatar(name: entry.displayName),
                           ),
                         )
                       : _DefaultAvatar(name: entry.displayName),
@@ -585,7 +583,7 @@ class _LeaderboardRow extends StatelessWidget {
       return '${(score / 1000).toStringAsFixed(score % 1000 == 0 ? 0 : 1)}k';
     }
     return score.toString();
-  }
+  } 
 }
 
 // ── Default avatar (initials) ─────────────────────────────────────────────────
@@ -688,91 +686,6 @@ class _ErrorState extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: Colors.grey[500]),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Bottom navigation bar ─────────────────────────────────────────────────────
-
-class _BottomNav extends StatelessWidget {
-  final int currentIndex;
-  const _BottomNav({required this.currentIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (Icons.home_outlined, Icons.home_rounded, 'Home'),
-      (Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Leaderboard'),
-      (Icons.emoji_events_outlined, Icons.emoji_events_rounded, 'Challenges'),
-      (Icons.show_chart_outlined, Icons.show_chart_rounded, 'Statistics'),
-      (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final (outlinedIcon, filledIcon, label) = items[i];
-              final isActive = i == currentIndex;
-              return GestureDetector(
-                onTap: () {
-                  // Handle navigation here
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? const Color(0xFF3D5A80).withOpacity(0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isActive ? filledIcon : outlinedIcon,
-                        size: 24,
-                        color: isActive
-                            ? const Color(0xFF3D5A80)
-                            : Colors.grey[400],
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: isActive
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: isActive
-                              ? const Color(0xFF3D5A80)
-                              : Colors.grey[400],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
         ),
       ),
     );

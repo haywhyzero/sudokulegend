@@ -240,8 +240,8 @@ class _GamePageState extends ConsumerState<GamePage>
 
   Future<void> _initAudio() async {
     _audioPlayer = AudioPlayer();
-    try { // TODO: Fix: Audio not loading from asset
-      await _audioPlayer.setAsset('assets/audios/correct.mp3');
+    try {
+      await _audioPlayer.setAsset('audios/correct.mp3');
     } catch (e) {
       debugPrint("Error loading audio: $e");
     }

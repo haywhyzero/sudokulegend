@@ -3,7 +3,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sudokulegend/Models/state%20management/game_persistent.dart';
 import 'package:sudokulegend/Models/state%20management/profile_provider.dart';
 import 'package:sudokulegend/Models/state%20management/settings_provider.dart';
@@ -14,6 +13,7 @@ import 'package:sudokulegend/Screens/pages/settings/profile_auth_gate.dart';
 import 'package:sudokulegend/Models/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sudokulegend/Screens/pages/settings/terms_of_service.dart';
+import 'package:sudokulegend/Widgets/helper.dart';
 import 'package:sudokulegend/Widgets/svg_icon.dart';
 import 'package:sudokulegend/Widgets/themes.dart';
 
@@ -46,63 +46,83 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void deleteData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    ref.read(saveGameProvider).clear();
-    ref.read(saveGameProvider.notifier).state = {};
-    await SudokuStorageService.instance.deleteActiveGame();
-    setState(() {
-      isloading = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('You have successfully deleted all your data!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    try {
+      
+      ref.read(saveGameProvider).clear();
+      ref.read(saveGameProvider.notifier).state = {};
+      await SudokuStorageService.instance.deleteAllData();
+      
+      showSnackBar(
+        context: context,
+        message: "You have successfully deleted all your data!",
+        bgColor: Colors.green,
+        fgColor: Colors.white
+      );
+    } catch (e) {
+      showSnackBar(
+        context: context,
+        message: "Something went wrong!",
+        bgColor: Colors.red,
+        fgColor: Colors.white,
+        showCloseIcon: true
+      );
+    } finally {
+      setState(() {
+        isloading = false;
+      });
+    }
+    
   }
 
   void showResetDialog() {
-    showDialog(
+    showModalBottomSheet(
+      // isScrollControlled: true,
       context: context,
+      backgroundColor: Colors.transparent,
+      showDragHandle: true,
+      enableDrag: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          return AlertDialog(
-            title: Text('Reset Data'),
-            content: isloading
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Center(
-                        child: CircularProgressIndicator(color: Colors.red),
-                      ),
-                    ],
-                  )
-                : const Text(
-                    'Are you sure you want to delete all data? This action cannot be undone.',
-                  ),
-            actions: isloading
-                ? []
-                : [
-                    TextButton(
-                      onPressed: () async {
-                        setState(() {
-                          isloading = true;
-                        });
-                        deleteData();
-                        Navigator.pop(context);
-                      },
-                      child: Text('Yes'),
-                    ),
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  "Delete Account Data",
+                  style: TextStyle(fontWeight: FontWeight.w400),
+                ),
+                SizedBox(height: 14),
+                const Text(
+                  "This action will erase your account and cannot be undone!",
+                  style: TextStyle(color: Colors.black45),
+                ),
+                SizedBox(height: 12),
 
-                    OutlinedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      style: ButtonStyle(),
-                      child: Text('No'),
-                    ),
-                  ],
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text("Delete"),
+                ),
+
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Color(0xFF3D5A80),
+                  ),
+
+                  child: Text('Cancel'),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -142,10 +162,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              Svgicon(assetName: "warning"),
-              const SizedBox(height: 16,),
-              Text("Are you sure you want to sign out? \n      You can log back in anytime"),
-              const SizedBox(height: 16,),
+              CircleAvatar(
+                child: Image.asset(
+                  'assets/images/warning.png',
+                  width: 80,
+                  height: 80,
+                  errorBuilder: (context, error, stackTrace) =>
+                      Icon(Icons.warning, size: 80, color: Colors.red),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "Are you sure you want to sign out? \n      You can log back in anytime",
+              ),
+              const SizedBox(height: 16),
 
               ElevatedButton(
                 onPressed: () async {
@@ -160,7 +190,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF53698A),
                   foregroundColor: Colors.white,
-                  
                 ),
                 child: Text('Log Out'),
               ),
@@ -170,7 +199,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +387,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           builder: (context) => PrivacyPolicy(),
                         ),
                       ),
-                      // TODO: Add the Policy and Terms of Service write up
                       child: const Text(
                         'Privacy Policy',
                         style: TextStyle(color: Colors.blue, fontSize: 12),
