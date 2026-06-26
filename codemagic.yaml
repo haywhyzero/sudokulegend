@@ -1,10 +1,12 @@
 workflows:
-  flutter-build:
-    name: Flutter Build
+  # Android workflow
+  android-build:
+    name: Android Build
     environment:
       flutter: stable
-      # flutter: 3.24.0   # Your fixed version
-      xcode: latest
+      # flutter: 3.24.0
+      vars:
+        PACKAGE_NAME: "com.ay.sudokulegend" 
 
     triggering:
       events:
@@ -17,9 +19,7 @@ workflows:
     cache:
       cache_paths:
         - $FLUTTER_ROOT/.pub-cache
-        - $FLUTTER_ROOT/
         - $HOME/.gradle/caches
-        - $HOME/Library/Caches/CocoaPods
 
     scripts:
       - name: Decode Firebase Configs
@@ -29,13 +29,123 @@ workflows:
           echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
           echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
           echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
-          echo $IOS_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/ios/Runner/GoogleService-Info.plist 2>/dev/null || echo "iOS config skipped"
-          echo "✅ Firebase files restored:"
-          ls -la $FCI_BUILD_DIR/android/app/google-services.json
-          ls -la $FCI_BUILD_DIR/lib/firebase_options.dart
+          echo "✅ Firebase files restored"
+
+      - name: Decode Keystore
+        script: |
+          set -e
+          echo "🔑 Restoring keystore..."
+          echo $ANDROID_KEYSTORE | base64 --decode > $FCI_BUILD_DIR/android/app/sudokulegend-keystore.jks
+          # Write key.properties so Gradle picks it up
+          cat > $FCI_BUILD_DIR/android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=sudokulegend-keystore.jks
+          EOF
+          echo "✅ Keystore restored"
 
       - name: Flutter Pub Get
         script: flutter pub get
 
       - name: Build Android App Bundle
         script: flutter build appbundle --release
+
+    artifacts:
+      - build/**/outputs/**/*.aab
+      - build/**/outputs/**/mapping.txt
+      - flutter_drive.log
+
+    publishing:
+      # Optional: publish to Google Play
+      # google_play:
+      #   credentials: $GOOGLE_PLAY_JSON
+      #   track: internal
+      email:
+        recipients:
+          - aregbeayomide@gmail.com
+        notify:
+          success: true
+          failure: true
+
+
+  # iOS workflow
+  ios-build:
+    name: iOS Build
+    environment:
+      flutter: stable
+      # flutter: 3.24.0
+      xcode: latest
+      cocoapods: default
+      vars:
+        BUNDLE_ID: "com.ay.sudokulegend" # 👈 Change this
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: "main"
+          include: true
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+
+    scripts:
+      - name: Decode Firebase Configs
+        script: |
+          set -e
+          echo "🔄 Restoring Firebase config files..."
+          echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
+          echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
+          echo $IOS_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/ios/Runner/GoogleService-Info.plist
+          echo "✅ Firebase files restored"
+
+      # - name: Set up iOS code signing
+      #   script: |
+      #     # Installs the certificate & provisioning profile stored as
+      #     # Codemagic environment variables (set these in the UI):
+      #     #   IOS_CERTIFICATE        — base64 of your .p12
+      #     #   IOS_CERTIFICATE_PASSWORD
+      #     #   IOS_PROVISIONING_PROFILE — base64 of your .mobileprovision
+      #     keychain initialize
+      #     echo $IOS_CERTIFICATE | base64 --decode > /tmp/cert.p12
+      #     keychain add-certificates --certificate /tmp/cert.p12 \
+      #       --certificate-password $IOS_CERTIFICATE_PASSWORD
+      #     echo $IOS_PROVISIONING_PROFILE | base64 --decode > /tmp/profile.mobileprovision
+      #     xcode-project use-profiles --profile /tmp/profile.mobileprovision
+
+      - name: Flutter Pub Get
+        script: flutter pub get
+
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install
+
+      - name: Build iOS IPA
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+
+    publishing:
+      # Optional: publish to App Store Connect
+      # app_store_connect:
+      #   api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+      #   key_id: $APP_STORE_CONNECT_KEY_ID
+      #   issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+      email:
+        recipients:
+          - aregbeayomide@gmail.com
+        notify:
+          success: true
+          failure: true
