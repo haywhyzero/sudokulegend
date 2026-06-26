@@ -3,8 +3,8 @@ workflows:
   android-build:
     name: Android Build
     environment:
-      flutter: stable
-      # flutter: 3.24.0
+      # flutter: stable
+      flutter: 3.38.0
       groups:
         - firebase
         - keystore
@@ -82,8 +82,8 @@ workflows:
   ios-build:
     name: iOS Build
     environment:
-      flutter: stable
-      # flutter: 3.24.0
+      # flutter: stable
+      flutter: 3.38.0
       xcode: latest
       cocoapods: default
       groups:
