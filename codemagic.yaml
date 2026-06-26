@@ -120,11 +120,6 @@ workflows:
           else
             echo "✅ Podfile already exists, skipping"
           fi
-          # Set minimum iOS deployment target to 13.0
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' \
-            ios/Runner.xcodeproj/project.pbxproj
-
-          echo "✅ iOS project ready"
 
       - name: Decode Firebase Configs
         script: |
