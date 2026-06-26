@@ -153,7 +153,7 @@ workflows:
           cd $FCI_BUILD_DIR/ios
 
           # Set platform version
-          sed -i '' "s/# platform :ios, '12.0'/platform :ios, '13.0'/" Podfile
+          sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/" Podfile
           sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/" Podfile
 
           # Use Python to safely patch the existing post_install block
