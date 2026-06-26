@@ -58,11 +58,13 @@ workflows:
   #     - name: Flutter Pub Get
   #       script: flutter pub get
 
-  #     - name: Build Android App Bundle
+  #     - name: Build Android App Bundle/Apk
   #       script: flutter build appbundle --release
+  #       script: flutter build apk --release
 
   #   artifacts:
   #     - build/**/outputs/**/*.aab
+  #     - build/**/outputs/**/*.apk
   #     - build/**/outputs/**/mapping.txt
   #     - flutter_drive.log
 
@@ -144,6 +146,22 @@ workflows:
       #       --certificate-password $IOS_CERTIFICATE_PASSWORD
       #     echo $IOS_PROVISIONING_PROFILE | base64 --decode > /tmp/profile.mobileprovision
       #     xcode-project use-profiles --profile /tmp/profile.mobileprovision
+
+      - name: Debug iOS Structure
+        script: |
+          echo "📁 FCI_BUILD_DIR: $FCI_BUILD_DIR"
+          echo ""
+          echo "📁 Contents of ios/:"
+          ls -la $FCI_BUILD_DIR/ios/
+          echo ""
+          echo "📁 Looking for .symlinks:"
+          find $FCI_BUILD_DIR -name ".symlinks" -type d 2>/dev/null || echo "No .symlinks dir found"
+          echo ""
+          echo "📁 Looking for cloud_firestore podspec anywhere:"
+          find $FCI_BUILD_DIR -name "*.podspec" 2>/dev/null | grep -i firestore || echo "No firestore podspec found"
+          echo ""
+          echo "📁 Looking for cloud_firestore podspec.json anywhere:"
+          find $FCI_BUILD_DIR -name "*.podspec.json" 2>/dev/null | grep -i firestore || echo "No firestore podspec.json found"
 
       - name: Install CocoaPods
         script: |
