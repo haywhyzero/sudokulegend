@@ -150,15 +150,17 @@ workflows:
           cd $FCI_BUILD_DIR/ios
 
           python3 - <<'PYEOF'
+          import os
+          import re
+
+          # ── 1. Patch Podfile ──────────────────────────────────────────
           with open("Podfile", "r") as f:
               content = f.read()
 
-          # 1. Uncomment the platform line (remove the # )
           content = content.replace("# platform :ios, '12.0'", "platform :ios, '13.0'")
           content = content.replace("# platform :ios, '13.0'", "platform :ios, '13.0'")
           content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
 
-          # 2. Patch the post_install block
           old = "flutter_additional_ios_build_settings(target)"
           new = """flutter_additional_ios_build_settings(target)
               target.build_configurations.each do |config|
@@ -171,19 +173,62 @@ workflows:
           with open("Podfile", "w") as f:
               f.write(content)
 
-          print("✅ Podfile patched successfully")
+          print("✅ Podfile patched")
+
+          # ── 2. Patch all .podspec files in .symlinks ──────────────────
+          symlinks_dir = os.path.join(os.path.dirname(os.path.abspath("Podfile")), ".symlinks")
+          patched = []
+
+          for root, dirs, files in os.walk(symlinks_dir):
+              for fname in files:
+                  if fname.endswith(".podspec") or fname.endswith(".podspec.json"):
+                      fpath = os.path.join(root, fname)
+                      try:
+                          with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                              spec = f.read()
+
+                          # Patch s.platform or s.ios.deployment_target
+                          original = spec
+                          spec = re.sub(
+                              r"(s\.platform\s*=\s*:ios,\s*')[0-9.]+(')",
+                              r"\g<1>13.0\2",
+                              spec
+                          )
+                          spec = re.sub(
+                              r"(s\.ios\.deployment_target\s*=\s*')[0-9.]+(')",
+                              r"\g<1>13.0\2",
+                              spec
+                          )
+                          # Also handle JSON format
+                          spec = re.sub(
+                              r'("ios":\s*")[0-9.]+(")',
+                              r'\g<1>13.0\2',
+                              spec
+                          )
+
+                          if spec != original:
+                              with open(fpath, "w", encoding="utf-8") as f:
+                                  f.write(spec)
+                              patched.append(fpath)
+                      except Exception as e:
+                          print(f"⚠️ Could not patch {fpath}: {e}")
+
+          if patched:
+              print(f"✅ Patched {len(patched)} podspec file(s):")
+              for p in patched:
+                  print(f"   {p}")
+          else:
+              print("ℹ️ No podspec files needed patching")
+
           PYEOF
 
-          echo "📄 Final Podfile:"
-          cat Podfile
-
-          # Verify platform line is active before running pod install
+          # Verify platform line
           if ! grep -q "^platform :ios, '13.0'" Podfile; then
             echo "❌ Platform line not set correctly!"
             exit 1
           fi
 
-          echo "✅ Platform verified, running pod install..."
+          echo "✅ All patches applied, running pod install..."
           pod install
 
       # - name: Install CocoaPods
