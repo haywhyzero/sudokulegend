@@ -45,11 +45,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-*.lock
 *.env
-*.json
 *.txt
 firebase_options.dart
+google-services.json
+firebase.json
 key.properties
 GoogleService-Info.plist
 

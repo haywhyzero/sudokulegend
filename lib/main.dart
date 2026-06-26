@@ -96,8 +96,8 @@ class MyApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData.light().copyWith(
          pageTransitionsTheme: PageTransitionsTheme(builders: {
-          TargetPlatform.android: const CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         }),
       ),
       darkTheme: darkMode(),
