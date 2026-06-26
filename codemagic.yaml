@@ -152,22 +152,34 @@ workflows:
         script: |
           cd $FCI_BUILD_DIR/ios
 
-          # Patch minimum iOS deployment target to 13.0
+          # Set platform version
           sed -i '' "s/# platform :ios, '12.0'/platform :ios, '13.0'/" Podfile
           sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/" Podfile
 
-          # Also patch via post_install hook if sed doesn't catch it
-          cat >> Podfile <<'EOF'
+          # Use Python to safely patch the existing post_install block
+          python3 - <<'PYEOF'
+          import re
 
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              flutter_additional_ios_build_settings(target)
+          with open("Podfile", "r") as f:
+              content = f.read()
+
+          # Insert deployment target setting after flutter_additional_ios_build_settings line
+          old = "flutter_additional_ios_build_settings(target)"
+          new = """flutter_additional_ios_build_settings(target)
               target.build_configurations.each do |config|
                 config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-              end
-            end
-          end
-          EOF
+              end"""
+
+          content = content.replace(old, new)
+
+          with open("Podfile", "w") as f:
+              f.write(content)
+
+          print("✅ Podfile patched successfully")
+          PYEOF
+
+          echo "📄 Final Podfile:"
+          cat Podfile
 
           pod install
 
