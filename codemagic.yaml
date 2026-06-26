@@ -5,6 +5,10 @@ workflows:
     environment:
       flutter: stable
       # flutter: 3.24.0
+      groups:
+        - firebase
+        - keystore
+        - google
       vars:
         PACKAGE_NAME: "com.ay.sudokulegend" 
 
@@ -30,6 +34,11 @@ workflows:
           echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
           echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
           echo "✅ Firebase files restored"
+          # Hard check — fail immediately if file is missing or empty
+          if [ ! -s "$FCI_BUILD_DIR/lib/firebase_options.dart" ]; then
+            echo "❌ firebase_options.dart is missing or empty!"
+            exit 1
+          fi
 
       - name: Decode Keystore
         script: |
@@ -43,11 +52,6 @@ workflows:
           keyAlias=$ANDROID_KEY_ALIAS
           storeFile=sudokulegend-keystore.jks
           EOF
-          # Hard check — fail immediately if file is missing or empty
-          if [ ! -s "$FCI_BUILD_DIR/lib/firebase_options.dart" ]; then
-            echo "❌ firebase_options.dart is missing or empty!"
-            exit 1
-          fi
           echo "✅ Keystore restored"
 
       - name: Flutter Pub Get
@@ -82,6 +86,9 @@ workflows:
       # flutter: 3.24.0
       xcode: latest
       cocoapods: default
+      groups:
+        - firebase
+        - google
       vars:
         BUNDLE_ID: "com.ay.sudokulegend" # 👈 Change this
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
@@ -104,7 +111,6 @@ workflows:
       - name: Generate iOS project files
         script: |
           cd $FCI_BUILD_DIR
-          
           # Check if ios/ folder or Podfile is missing
           if [ ! -f "ios/Podfile" ]; then
             echo "⚠️ Podfile not found, generating iOS project..."
