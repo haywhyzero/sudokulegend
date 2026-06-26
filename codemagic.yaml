@@ -145,32 +145,28 @@ workflows:
       #     echo $IOS_PROVISIONING_PROFILE | base64 --decode > /tmp/profile.mobileprovision
       #     xcode-project use-profiles --profile /tmp/profile.mobileprovision
 
-      - name: Flutter Pub Get
-        script: flutter pub get
-
       - name: Install CocoaPods
         script: |
           cd $FCI_BUILD_DIR/ios
 
-          # Set platform version
-          sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/" Podfile
-          sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/" Podfile
-
-          # Use Python to safely patch the existing post_install block
           python3 - <<'PYEOF'
-          import re
-
           with open("Podfile", "r") as f:
               content = f.read()
 
-          # Insert deployment target setting after flutter_additional_ios_build_settings line
+          # 1. Uncomment the platform line (remove the # )
+          content = content.replace("# platform :ios, '12.0'", "platform :ios, '13.0'")
+          content = content.replace("# platform :ios, '13.0'", "platform :ios, '13.0'")
+          content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
+
+          # 2. Patch the post_install block
           old = "flutter_additional_ios_build_settings(target)"
           new = """flutter_additional_ios_build_settings(target)
               target.build_configurations.each do |config|
                 config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
               end"""
 
-          content = content.replace(old, new)
+          if old in content and "IPHONEOS_DEPLOYMENT_TARGET" not in content:
+              content = content.replace(old, new)
 
           with open("Podfile", "w") as f:
               f.write(content)
@@ -181,6 +177,13 @@ workflows:
           echo "📄 Final Podfile:"
           cat Podfile
 
+          # Verify platform line is active before running pod install
+          if ! grep -q "^platform :ios, '13.0'" Podfile; then
+            echo "❌ Platform line not set correctly!"
+            exit 1
+          fi
+
+          echo "✅ Platform verified, running pod install..."
           pod install
 
       # - name: Install CocoaPods
