@@ -1,82 +1,82 @@
 workflows:
   # Android workflow
-  android-build:
-    name: Android Build
-    environment:
-      # flutter: stable
-      flutter: 3.38.0
-      groups:
-        - firebase
-        - keystore
-        - google
-      vars:
-        PACKAGE_NAME: "com.ay.sudokulegend" 
+  # android-build:
+  #   name: Android Build
+  #   environment:
+  #     # flutter: stable
+  #     flutter: 3.38.0
+  #     groups:
+  #       - firebase
+  #       - keystore
+  #       - google
+  #     vars:
+  #       PACKAGE_NAME: "com.ay.sudokulegend" 
 
-    triggering:
-      events:
-        - push
-        - pull_request
-      branch_patterns:
-        - pattern: "main"
-          include: true
+  #   triggering:
+  #     events:
+  #       - push
+  #       - pull_request
+  #     branch_patterns:
+  #       - pattern: "main"
+  #         include: true
 
-    cache:
-      cache_paths:
-        - $FLUTTER_ROOT/.pub-cache
-        - $HOME/.gradle/caches
+  #   cache:
+  #     cache_paths:
+  #       - $FLUTTER_ROOT/.pub-cache
+  #       - $HOME/.gradle/caches
 
-    scripts:
-      - name: Decode Firebase Configs
-        script: |
-          set -e
-          echo "🔄 Restoring Firebase config files..."
-          echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
-          echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
-          echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
-          echo $ENV | base64 --decode > $FCI_BUILD_DIR/.env
-          echo "✅ Firebase files restored"
-          # Hard check — fail immediately if file is missing or empty
-          if [ ! -s "$FCI_BUILD_DIR/lib/firebase_options.dart" ]; then
-            echo "❌ firebase_options.dart is missing or empty!"
-            exit 1
-          fi
+  #   scripts:
+  #     - name: Decode Firebase Configs
+  #       script: |
+  #         set -e
+  #         echo "🔄 Restoring Firebase config files..."
+  #         echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
+  #         echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
+  #         echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
+  #         echo $ENV | base64 --decode > $FCI_BUILD_DIR/.env
+  #         echo "✅ Firebase files restored"
+  #         # Hard check — fail immediately if file is missing or empty
+  #         if [ ! -s "$FCI_BUILD_DIR/lib/firebase_options.dart" ]; then
+  #           echo "❌ firebase_options.dart is missing or empty!"
+  #           exit 1
+  #         fi
 
-      - name: Decode Keystore
-        script: |
-          set -e
-          echo "🔑 Restoring keystore..."
-          echo $ANDROID_KEYSTORE | base64 --decode > $FCI_BUILD_DIR/android/app/sudokulegend-keystore.jks
-          # Write key.properties so Gradle picks it up
-          cat > $FCI_BUILD_DIR/android/key.properties <<EOF
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyPassword=$ANDROID_KEY_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=sudokulegend-keystore.jks
-          EOF
-          echo "✅ Keystore restored"
+  #     - name: Decode Keystore
+  #       script: |
+  #         set -e
+  #         echo "🔑 Restoring keystore..."
+  #         echo $ANDROID_KEYSTORE | base64 --decode > $FCI_BUILD_DIR/android/app/sudokulegend-keystore.jks
+  #         # Write key.properties so Gradle picks it up
+  #         cat > $FCI_BUILD_DIR/android/key.properties <<EOF
+  #         storePassword=$ANDROID_KEYSTORE_PASSWORD
+  #         keyPassword=$ANDROID_KEY_PASSWORD
+  #         keyAlias=$ANDROID_KEY_ALIAS
+  #         storeFile=sudokulegend-keystore.jks
+  #         EOF
+  #         echo "✅ Keystore restored"
 
-      - name: Flutter Pub Get
-        script: flutter pub get
+  #     - name: Flutter Pub Get
+  #       script: flutter pub get
 
-      - name: Build Android App Bundle
-        script: flutter build appbundle --release
+  #     - name: Build Android App Bundle
+  #       script: flutter build appbundle --release
 
-    artifacts:
-      - build/**/outputs/**/*.aab
-      - build/**/outputs/**/mapping.txt
-      - flutter_drive.log
+  #   artifacts:
+  #     - build/**/outputs/**/*.aab
+  #     - build/**/outputs/**/mapping.txt
+  #     - flutter_drive.log
 
-    publishing:
-      # Optional: publish to Google Play
-      # google_play:
-      #   credentials: $GOOGLE_PLAY_JSON
-      #   track: internal
-      email:
-        recipients:
-          - aregbeayomide@gmail.com
-        notify:
-          success: true
-          failure: true
+  #   publishing:
+  #     # Optional: publish to Google Play
+  #     # google_play:
+  #     #   credentials: $GOOGLE_PLAY_JSON
+  #     #   track: internal
+  #     email:
+  #       recipients:
+  #         - aregbeayomide@gmail.com
+  #       notify:
+  #         success: true
+  #         failure: true
 
 
   # iOS workflow
