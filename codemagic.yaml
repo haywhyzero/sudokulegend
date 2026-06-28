@@ -114,16 +114,22 @@ workflows:
       - name: Generate iOS project files
         script: |
           cd $FCI_BUILD_DIR
-          if [ ! -f "ios/Podfile" ]; then
-            echo "⚠️ Podfile not found, generating iOS project..."
-            flutter create --platforms=ios .
-            echo "✅ iOS project generated"
-          else
-            echo "✅ Podfile already exists, skipping"
+
+          echo "🔄 Force generating iOS project files..."
+          # --overwrite flag forces regeneration even if ios/ exists
+          flutter create --platforms=ios --overwrite .
+
+          echo "📁 ios/ contents after generate:"
+          ls -la ios/
+
+          echo "📄 Podfile exists: $([ -f ios/Podfile ] && echo YES || echo NO)"
+
+          # Patch Xcode deployment target
+          if [ -f "ios/Runner.xcodeproj/project.pbxproj" ]; then
+            sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' \
+              ios/Runner.xcodeproj/project.pbxproj
+            echo "✅ Xcode deployment target patched"
           fi
-          # Patch Xcode project deployment target
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' \
-            ios/Runner.xcodeproj/project.pbxproj 2>/dev/null || true
 
       - name: Decode Firebase Configs
         script: |
