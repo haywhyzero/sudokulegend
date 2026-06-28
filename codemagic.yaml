@@ -1,99 +1,99 @@
 workflows:
-  # Android workflow
-  # android-build:
-  #   name: Android Build
-  #   environment:
-  #     # flutter: stable
-  #     flutter: 3.38.0
-  #     groups:
-  #       - firebase
-  #       - keystore
-  #       - google
-  #     vars:
-  #       PACKAGE_NAME: "com.ay.sudokulegend" 
+  # ─────────────────────────────────────────
+  # ANDROID WORKFLOW
+  # ─────────────────────────────────────────
+  android-build:
+    name: Android Build
+    environment:
+      flutter: stable
+      groups:
+        - firebase
+        - keystore
+        - google
+      vars:
+        PACKAGE_NAME: "com.ay.sudokulegend"
 
-  #   triggering:
-  #     events:
-  #       - push
-  #       - pull_request
-  #     branch_patterns:
-  #       - pattern: "main"
-  #         include: true
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: "main"
+          include: true
 
-  #   cache:
-  #     cache_paths:
-  #       - $FLUTTER_ROOT/.pub-cache
-  #       - $HOME/.gradle/caches
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/.gradle/caches
 
-  #   scripts:
-  #     - name: Decode Firebase Configs
-  #       script: |
-  #         set -e
-  #         echo "🔄 Restoring Firebase config files..."
-  #         echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
-  #         echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
-  #         echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
-  #         echo $ENV | base64 --decode > $FCI_BUILD_DIR/.env
-  #         echo "✅ Firebase files restored"
-  #         # Hard check — fail immediately if file is missing or empty
-  #         if [ ! -s "$FCI_BUILD_DIR/lib/firebase_options.dart" ]; then
-  #           echo "❌ firebase_options.dart is missing or empty!"
-  #           exit 1
-  #         fi
+    scripts:
+      - name: Decode Firebase Configs
+        script: |
+          set -e
+          echo "🔄 Restoring Firebase config files..."
+          echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
+          echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
+          echo $ANDROID_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/android/app/google-services.json
+          echo $ENV | base64 --decode > $FCI_BUILD_DIR/.env
+          if [ ! -s "$FCI_BUILD_DIR/lib/firebase_options.dart" ]; then
+            echo "❌ firebase_options.dart is missing or empty!"
+            exit 1
+          fi
+          echo "✅ Firebase files restored"
 
-  #     - name: Decode Keystore
-  #       script: |
-  #         set -e
-  #         echo "🔑 Restoring keystore..."
-  #         echo $ANDROID_KEYSTORE | base64 --decode > $FCI_BUILD_DIR/android/app/sudokulegend-keystore.jks
-  #         # Write key.properties so Gradle picks it up
-  #         cat > $FCI_BUILD_DIR/android/key.properties <<EOF
-  #         storePassword=$ANDROID_KEYSTORE_PASSWORD
-  #         keyPassword=$ANDROID_KEY_PASSWORD
-  #         keyAlias=$ANDROID_KEY_ALIAS
-  #         storeFile=sudokulegend-keystore.jks
-  #         EOF
-  #         echo "✅ Keystore restored"
+      - name: Decode Keystore
+        script: |
+          set -e
+          echo "🔑 Restoring keystore..."
+          if [ -z "$ANDROID_KEYSTORE" ]; then
+            echo "❌ ANDROID_KEYSTORE env var is not set!"
+            exit 1
+          fi
+          echo $ANDROID_KEYSTORE | base64 --decode > $FCI_BUILD_DIR/android/app/sudokulegend-keystore.jks
+          cat > $FCI_BUILD_DIR/android/key.properties <<KEYEOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=sudokulegend-keystore.jks
+          KEYEOF
+          echo "✅ Keystore restored"
 
-  #     - name: Flutter Pub Get
-  #       script: flutter pub get
+      - name: Flutter Pub Get
+        script: flutter pub get
 
-  #     - name: Build Android App Bundle/Apk
-  #       script: flutter build appbundle --release
-  #       script: flutter build apk --release
+      - name: Build Android App Bundle
+        script: flutter build apk --release
 
-  #   artifacts:
-  #     - build/**/outputs/**/*.aab
-  #     - build/**/outputs/**/*.apk
-  #     - build/**/outputs/**/mapping.txt
-  #     - flutter_drive.log
+    artifacts:
+      - build/**/outputs/**/*.aab
+      - build/**/outputs/**/*.apk
+      - build/**/outputs/**/mapping.txt
+      - flutter_drive.log
 
-  #   publishing:
-  #     # Optional: publish to Google Play
-  #     # google_play:
-  #     #   credentials: $GOOGLE_PLAY_JSON
-  #     #   track: internal
-  #     email:
-  #       recipients:
-  #         - aregbeayomide@gmail.com
-  #       notify:
-  #         success: true
-  #         failure: true
+    publishing:
+      email:
+        recipients:
+          - aregbeayomide@gmail.com
+        notify:
+          success: true
+          failure: true
 
 
-  # iOS workflow
+  # ─────────────────────────────────────────
+  # IOS WORKFLOW
+  # ─────────────────────────────────────────
   ios-build:
     name: iOS Build
     environment:
-      # flutter: stable
-      flutter: 3.38.0
+      flutter: stable
       xcode: latest
       cocoapods: default
       groups:
         - firebase
         - google
+        # - ios_signing 
       vars:
-        BUNDLE_ID: "com.ay.sudokulegend" # 👈 Change this
+        BUNDLE_ID: "com.ay.sudokulegend"
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
         XCODE_SCHEME: "Runner"
 
@@ -114,7 +114,6 @@ workflows:
       - name: Generate iOS project files
         script: |
           cd $FCI_BUILD_DIR
-          # Check if ios/ folder or Podfile is missing
           if [ ! -f "ios/Podfile" ]; then
             echo "⚠️ Podfile not found, generating iOS project..."
             flutter create --platforms=ios .
@@ -122,6 +121,9 @@ workflows:
           else
             echo "✅ Podfile already exists, skipping"
           fi
+          # Patch Xcode project deployment target
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' \
+            ios/Runner.xcodeproj/project.pbxproj 2>/dev/null || true
 
       - name: Decode Firebase Configs
         script: |
@@ -133,35 +135,11 @@ workflows:
           echo $ENV | base64 --decode > $FCI_BUILD_DIR/.env
           echo "✅ Firebase files restored"
 
-      # - name: Set up iOS code signing
-      #   script: |
-      #     # Installs the certificate & provisioning profile stored as
-      #     # Codemagic environment variables (set these in the UI):
-      #     #   IOS_CERTIFICATE        — base64 of your .p12
-      #     #   IOS_CERTIFICATE_PASSWORD
-      #     #   IOS_PROVISIONING_PROFILE — base64 of your .mobileprovision
-      #     keychain initialize
-      #     echo $IOS_CERTIFICATE | base64 --decode > /tmp/cert.p12
-      #     keychain add-certificates --certificate /tmp/cert.p12 \
-      #       --certificate-password $IOS_CERTIFICATE_PASSWORD
-      #     echo $IOS_PROVISIONING_PROFILE | base64 --decode > /tmp/profile.mobileprovision
-      #     xcode-project use-profiles --profile /tmp/profile.mobileprovision
-
-      - name: Debug iOS Structure
+      - name: Flutter Pub Get          # 👈 THIS WAS MISSING — must run before CocoaPods
         script: |
-          echo "📁 FCI_BUILD_DIR: $FCI_BUILD_DIR"
-          echo ""
-          echo "📁 Contents of ios/:"
-          ls -la $FCI_BUILD_DIR/ios/
-          echo ""
-          echo "📁 Looking for .symlinks:"
-          find $FCI_BUILD_DIR -name ".symlinks" -type d 2>/dev/null || echo "No .symlinks dir found"
-          echo ""
-          echo "📁 Looking for cloud_firestore podspec anywhere:"
-          find $FCI_BUILD_DIR -name "*.podspec" 2>/dev/null | grep -i firestore || echo "No firestore podspec found"
-          echo ""
-          echo "📁 Looking for cloud_firestore podspec.json anywhere:"
-          find $FCI_BUILD_DIR -name "*.podspec.json" 2>/dev/null | grep -i firestore || echo "No firestore podspec.json found"
+          flutter pub get
+          echo "📁 Verifying .symlinks created:"
+          ls $FCI_BUILD_DIR/ios/.symlinks/plugins/ 2>/dev/null || echo "⚠️ No symlinks yet"
 
       - name: Install CocoaPods
         script: |
@@ -171,12 +149,12 @@ workflows:
           import os
           import re
 
-          # ── 1. Patch Podfile ──────────────────────────────────────────
+          # ── 1. Patch Podfile ──────────────────────────────────
           with open("Podfile", "r") as f:
               content = f.read()
 
-          content = content.replace("# platform :ios, '12.0'", "platform :ios, '13.0'")
-          content = content.replace("# platform :ios, '13.0'", "platform :ios, '13.0'")
+          content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
+          content = content.replace("platform :ios, '13.0'", "platform :ios, '13.0'")
           content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
 
           old = "flutter_additional_ios_build_settings(target)"
@@ -193,10 +171,14 @@ workflows:
 
           print("✅ Podfile patched")
 
-          # ── 2. Patch all .podspec files in .symlinks ──────────────────
-          symlinks_dir = os.path.join(os.path.dirname(os.path.abspath("Podfile")), ".symlinks")
-          patched = []
+          # ── 2. Patch .symlinks podspecs ───────────────────────
+          base = os.path.dirname(os.path.abspath("Podfile"))
+          symlinks_dir = os.path.join(base, ".symlinks")
 
+          print(f"🔍 Searching: {symlinks_dir}")
+          print(f"   Exists: {os.path.exists(symlinks_dir)}")
+
+          patched = []
           for root, dirs, files in os.walk(symlinks_dir):
               for fname in files:
                   if fname.endswith(".podspec") or fname.endswith(".podspec.json"):
@@ -204,26 +186,10 @@ workflows:
                       try:
                           with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
                               spec = f.read()
-
-                          # Patch s.platform or s.ios.deployment_target
                           original = spec
-                          spec = re.sub(
-                              r"(s\.platform\s*=\s*:ios,\s*')[0-9.]+(')",
-                              r"\g<1>13.0\2",
-                              spec
-                          )
-                          spec = re.sub(
-                              r"(s\.ios\.deployment_target\s*=\s*')[0-9.]+(')",
-                              r"\g<1>13.0\2",
-                              spec
-                          )
-                          # Also handle JSON format
-                          spec = re.sub(
-                              r'("ios":\s*")[0-9.]+(")',
-                              r'\g<1>13.0\2',
-                              spec
-                          )
-
+                          spec = re.sub(r"(s\.platform\s*=\s*:ios,\s*')[0-9.]+(')", r"\g<1>13.0\2", spec)
+                          spec = re.sub(r"(s\.ios\.deployment_target\s*=\s*')[0-9.]+(')", r"\g<1>13.0\2", spec)
+                          spec = re.sub(r'("ios":\s*")[0-9.]+(")', r'\g<1>13.0\2', spec)
                           if spec != original:
                               with open(fpath, "w", encoding="utf-8") as f:
                                   f.write(spec)
@@ -232,32 +198,59 @@ workflows:
                           print(f"⚠️ Could not patch {fpath}: {e}")
 
           if patched:
-              print(f"✅ Patched {len(patched)} podspec file(s):")
+              print(f"✅ Patched {len(patched)} podspec(s):")
               for p in patched:
                   print(f"   {p}")
           else:
               print("ℹ️ No podspec files needed patching")
-
           PYEOF
 
-          # Verify platform line
           if ! grep -q "^platform :ios, '13.0'" Podfile; then
             echo "❌ Platform line not set correctly!"
             exit 1
           fi
 
-          echo "✅ All patches applied, running pod install..."
+          echo "✅ Running pod install..."
           pod install
 
-      # - name: Install CocoaPods
+      # - name: Set up iOS code signing
       #   script: |
-      #     cd ios
-      #     pod install
+      #     keychain initialize
+      #     echo $IOS_CERTIFICATE | base64 --decode > /tmp/cert.p12
+      #     keychain add-certificates --certificate /tmp/cert.p12 \
+      #       --certificate-password $IOS_CERTIFICATE_PASSWORD
+      #     echo $IOS_PROVISIONING_PROFILE | base64 --decode > /tmp/profile.mobileprovision
+      #     xcode-project use-profiles --profile /tmp/profile.mobileprovision
 
+      # - name: Create Export Options Plist
+      #   script: |
+      #     cat > /Users/builder/export_options.plist <<PLISTEOF
+      #     <?xml version="1.0" encoding="UTF-8"?>
+      #     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      #     <plist version="1.0">
+      #     <dict>
+      #         <key>method</key>
+      #         <string>app-store</string>
+      #         <key>bundleID</key>
+      #         <string>com.ay.sudokulegend</string>
+      #         <key>signingStyle</key>
+      #         <string>manual</string>
+      #         <key>provisioningProfiles</key>
+      #         <dict>
+      #             <key>com.ay.sudokulegend</key>
+      #             <string>SudokuLegend Distribution</string>
+      #         </dict>
+      #     </dict>
+      #     </plist>
+      #     PLISTEOF
+
+      # - name: Build iOS IPA
+      #   script: |
+      #     flutter build ipa --release \
+      #       --export-options-plist=/Users/builder/export_options.plist
       - name: Build iOS IPA
         script: |
-          flutter build ipa --release \
-            --export-options-plist=/Users/builder/export_options.plist
+          flutter build ipa --release --no-codesign
 
     artifacts:
       - build/ios/ipa/*.ipa
@@ -265,11 +258,6 @@ workflows:
       - flutter_drive.log
 
     publishing:
-      # Optional: publish to App Store Connect
-      # app_store_connect:
-      #   api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-      #   key_id: $APP_STORE_CONNECT_KEY_ID
-      #   issuer_id: $APP_STORE_CONNECT_ISSUER_ID
       email:
         recipients:
           - aregbeayomide@gmail.com
