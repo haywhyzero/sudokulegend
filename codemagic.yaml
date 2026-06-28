@@ -143,18 +143,32 @@ workflows:
 
       - name: Install CocoaPods
         script: |
-          cd $FCI_BUILD_DIR/ios
+          set -e
+          IOS_DIR="$FCI_BUILD_DIR/ios"
 
-          python3 - <<'PYEOF'
+          echo "📁 iOS dir: $IOS_DIR"
+          echo "📁 Contents:"
+          ls -la "$IOS_DIR"
+
+          python3 - "$IOS_DIR" <<'PYEOF'
+          import sys
           import os
           import re
 
+          ios_dir = sys.argv[1]
+          os.chdir(ios_dir)
+          print(f"✅ Working directory: {os.getcwd()}")
+
           # ── 1. Patch Podfile ──────────────────────────────────
-          with open("Podfile", "r") as f:
+          podfile_path = os.path.join(ios_dir, "Podfile")
+          print(f"📄 Podfile path: {podfile_path}")
+          print(f"   Exists: {os.path.exists(podfile_path)}")
+
+          with open(podfile_path, "r") as f:
               content = f.read()
 
-          content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
-          content = content.replace("platform :ios, '13.0'", "platform :ios, '13.0'")
+          content = content.replace("# platform :ios, '12.0'", "platform :ios, '13.0'")
+          content = content.replace("# platform :ios, '13.0'", "platform :ios, '13.0'")
           content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
 
           old = "flutter_additional_ios_build_settings(target)"
@@ -166,16 +180,14 @@ workflows:
           if old in content and "IPHONEOS_DEPLOYMENT_TARGET" not in content:
               content = content.replace(old, new)
 
-          with open("Podfile", "w") as f:
+          with open(podfile_path, "w") as f:
               f.write(content)
 
           print("✅ Podfile patched")
 
           # ── 2. Patch .symlinks podspecs ───────────────────────
-          base = os.path.dirname(os.path.abspath("Podfile"))
-          symlinks_dir = os.path.join(base, ".symlinks")
-
-          print(f"🔍 Searching: {symlinks_dir}")
+          symlinks_dir = os.path.join(ios_dir, ".symlinks")
+          print(f"🔍 Symlinks dir: {symlinks_dir}")
           print(f"   Exists: {os.path.exists(symlinks_dir)}")
 
           patched = []
@@ -203,15 +215,18 @@ workflows:
                   print(f"   {p}")
           else:
               print("ℹ️ No podspec files needed patching")
+
           PYEOF
 
-          if ! grep -q "^platform :ios, '13.0'" Podfile; then
+          # Verify platform line
+          if ! grep -q "^platform :ios, '13.0'" "$IOS_DIR/Podfile"; then
             echo "❌ Platform line not set correctly!"
+            cat "$IOS_DIR/Podfile"
             exit 1
           fi
 
           echo "✅ Running pod install..."
-          pod install
+          cd "$IOS_DIR" && pod install
 
       # - name: Set up iOS code signing
       #   script: |
