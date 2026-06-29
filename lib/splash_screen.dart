@@ -1,4 +1,5 @@
 import 'package:animated_splash_screen/animated_splash_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:sudokulegend/Models/storage/shared_preferences.dart';
 import 'package:sudokulegend/Screens/onboarding/onboarding_page.dart';
 import 'package:sudokulegend/main.dart';
@@ -30,18 +31,19 @@ class _SplashScreenState extends State<SplashScreen> {
         children: [
           Image.asset(
             'assets/images/logo.png',
-            width: 90,
-            height: 90,
+            width: 130,
+            height: 130,
           ),
-          // const SizedBox(height: 8),
-          // const Text(
-          //   'SUDOKU LEGEND',
-          //   style: TextStyle(
-          //     fontSize: 24,
-          //     fontWeight: FontWeight.bold,
-          //     color: Colors.white,
-          //   ),
-          // ),
+          Text(
+            "SUDOKU LEGEND",
+            style: GoogleFonts.openSans(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 26,
+              letterSpacing: 4,
+              height: 1,
+            ),
+          ),
         ],
       ),
       backgroundColor: const Color(0xFF53698A),

@@ -82,206 +82,206 @@ workflows:
   # ─────────────────────────────────────────
   # IOS WORKFLOW
   # ─────────────────────────────────────────
-  ios-build:
-    name: iOS Build
-    environment:
-      flutter: stable
-      xcode: latest
-      cocoapods: default
-      groups:
-        - firebase
-        - google
-        # - ios_signing 
-      vars:
-        BUNDLE_ID: "com.ay.sudokulegend"
-        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
-        XCODE_SCHEME: "Runner"
+  # ios-build:
+  #   name: iOS Build
+  #   environment:
+  #     flutter: stable
+  #     xcode: latest
+  #     cocoapods: default
+  #     groups:
+  #       - firebase
+  #       - google
+  #       # - ios_signing 
+  #     vars:
+  #       BUNDLE_ID: "com.ay.sudokulegend"
+  #       XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+  #       XCODE_SCHEME: "Runner"
 
-    triggering:
-      events:
-        - push
-        - pull_request
-      branch_patterns:
-        - pattern: "main"
-          include: true
+  #   triggering:
+  #     events:
+  #       - push
+  #       - pull_request
+  #     branch_patterns:
+  #       - pattern: "main"
+  #         include: true
 
-    cache:
-      cache_paths:
-        - $FLUTTER_ROOT/.pub-cache
-        - $HOME/Library/Caches/CocoaPods
+  #   cache:
+  #     cache_paths:
+  #       - $FLUTTER_ROOT/.pub-cache
+  #       - $HOME/Library/Caches/CocoaPods
 
-    scripts:
-      - name: Generate iOS project files
-        script: |
-          cd $FCI_BUILD_DIR
+  #   scripts:
+  #     - name: Generate iOS project files
+  #       script: |
+  #         cd $FCI_BUILD_DIR
 
-          echo "🔄 Force generating iOS project files..."
-          # --overwrite flag forces regeneration even if ios/ exists
-          flutter create --platforms=ios --overwrite .
+  #         echo "🔄 Force generating iOS project files..."
+  #         # --overwrite flag forces regeneration even if ios/ exists
+  #         flutter create --platforms=ios --overwrite .
 
-          echo "📁 ios/ contents after generate:"
-          ls -la ios/
+  #         echo "📁 ios/ contents after generate:"
+  #         ls -la ios/
 
-          echo "📄 Podfile exists: $([ -f ios/Podfile ] && echo YES || echo NO)"
+  #         echo "📄 Podfile exists: $([ -f ios/Podfile ] && echo YES || echo NO)"
 
-          # Patch Xcode deployment target
-          if [ -f "ios/Runner.xcodeproj/project.pbxproj" ]; then
-            sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' \
-              ios/Runner.xcodeproj/project.pbxproj
-            echo "✅ Xcode deployment target patched"
-          fi
+  #         # Patch Xcode deployment target
+  #         if [ -f "ios/Runner.xcodeproj/project.pbxproj" ]; then
+  #           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' \
+  #             ios/Runner.xcodeproj/project.pbxproj
+  #           echo "✅ Xcode deployment target patched"
+  #         fi
 
-      - name: Decode Firebase Configs
-        script: |
-          set -e
-          echo "🔄 Restoring Firebase config files..."
-          echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
-          echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
-          echo $IOS_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/ios/Runner/GoogleService-Info.plist
-          echo $ENV | base64 --decode > $FCI_BUILD_DIR/.env
-          echo "✅ Firebase files restored"
+  #     - name: Decode Firebase Configs
+  #       script: |
+  #         set -e
+  #         echo "🔄 Restoring Firebase config files..."
+  #         echo $FIREBASE | base64 --decode > $FCI_BUILD_DIR/firebase.json
+  #         echo $FIREBASE_OPTIONS | base64 --decode > $FCI_BUILD_DIR/lib/firebase_options.dart
+  #         echo $IOS_FIREBASE_CONFIG | base64 --decode > $FCI_BUILD_DIR/ios/Runner/GoogleService-Info.plist
+  #         echo $ENV | base64 --decode > $FCI_BUILD_DIR/.env
+  #         echo "✅ Firebase files restored"
 
-      - name: Flutter Pub Get          # 👈 THIS WAS MISSING — must run before CocoaPods
-        script: |
-          flutter pub get
-          echo "📁 Verifying .symlinks created:"
-          ls $FCI_BUILD_DIR/ios/.symlinks/plugins/ 2>/dev/null || echo "⚠️ No symlinks yet"
+  #     - name: Flutter Pub Get          # 👈 THIS WAS MISSING — must run before CocoaPods
+  #       script: |
+  #         flutter pub get
+  #         echo "📁 Verifying .symlinks created:"
+  #         ls $FCI_BUILD_DIR/ios/.symlinks/plugins/ 2>/dev/null || echo "⚠️ No symlinks yet"
 
-      - name: Install CocoaPods
-        script: |
-          set -e
-          IOS_DIR="$FCI_BUILD_DIR/ios"
+  #     - name: Install CocoaPods
+  #       script: |
+  #         set -e
+  #         IOS_DIR="$FCI_BUILD_DIR/ios"
 
-          echo "📁 iOS dir: $IOS_DIR"
-          echo "📁 Contents:"
-          ls -la "$IOS_DIR"
+  #         echo "📁 iOS dir: $IOS_DIR"
+  #         echo "📁 Contents:"
+  #         ls -la "$IOS_DIR"
 
-          python3 - "$IOS_DIR" <<'PYEOF'
-          import sys
-          import os
-          import re
+  #         python3 - "$IOS_DIR" <<'PYEOF'
+  #         import sys
+  #         import os
+  #         import re
 
-          ios_dir = sys.argv[1]
-          os.chdir(ios_dir)
-          print(f"✅ Working directory: {os.getcwd()}")
+  #         ios_dir = sys.argv[1]
+  #         os.chdir(ios_dir)
+  #         print(f"✅ Working directory: {os.getcwd()}")
 
-          # ── 1. Patch Podfile ──────────────────────────────────
-          podfile_path = os.path.join(ios_dir, "Podfile")
-          print(f"📄 Podfile path: {podfile_path}")
-          print(f"   Exists: {os.path.exists(podfile_path)}")
+  #         # ── 1. Patch Podfile ──────────────────────────────────
+  #         podfile_path = os.path.join(ios_dir, "Podfile")
+  #         print(f"📄 Podfile path: {podfile_path}")
+  #         print(f"   Exists: {os.path.exists(podfile_path)}")
 
-          with open(podfile_path, "r") as f:
-              content = f.read()
+  #         with open(podfile_path, "r") as f:
+  #             content = f.read()
 
-          content = content.replace("# platform :ios, '12.0'", "platform :ios, '13.0'")
-          content = content.replace("# platform :ios, '13.0'", "platform :ios, '13.0'")
-          content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
+  #         content = content.replace("# platform :ios, '12.0'", "platform :ios, '13.0'")
+  #         content = content.replace("# platform :ios, '13.0'", "platform :ios, '13.0'")
+  #         content = content.replace("platform :ios, '12.0'", "platform :ios, '13.0'")
 
-          old = "flutter_additional_ios_build_settings(target)"
-          new = """flutter_additional_ios_build_settings(target)
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-              end"""
+  #         old = "flutter_additional_ios_build_settings(target)"
+  #         new = """flutter_additional_ios_build_settings(target)
+  #             target.build_configurations.each do |config|
+  #               config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+  #             end"""
 
-          if old in content and "IPHONEOS_DEPLOYMENT_TARGET" not in content:
-              content = content.replace(old, new)
+  #         if old in content and "IPHONEOS_DEPLOYMENT_TARGET" not in content:
+  #             content = content.replace(old, new)
 
-          with open(podfile_path, "w") as f:
-              f.write(content)
+  #         with open(podfile_path, "w") as f:
+  #             f.write(content)
 
-          print("✅ Podfile patched")
+  #         print("✅ Podfile patched")
 
-          # ── 2. Patch .symlinks podspecs ───────────────────────
-          symlinks_dir = os.path.join(ios_dir, ".symlinks")
-          print(f"🔍 Symlinks dir: {symlinks_dir}")
-          print(f"   Exists: {os.path.exists(symlinks_dir)}")
+  #         # ── 2. Patch .symlinks podspecs ───────────────────────
+  #         symlinks_dir = os.path.join(ios_dir, ".symlinks")
+  #         print(f"🔍 Symlinks dir: {symlinks_dir}")
+  #         print(f"   Exists: {os.path.exists(symlinks_dir)}")
 
-          patched = []
-          for root, dirs, files in os.walk(symlinks_dir):
-              for fname in files:
-                  if fname.endswith(".podspec") or fname.endswith(".podspec.json"):
-                      fpath = os.path.join(root, fname)
-                      try:
-                          with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
-                              spec = f.read()
-                          original = spec
-                          spec = re.sub(r"(s\.platform\s*=\s*:ios,\s*')[0-9.]+(')", r"\g<1>13.0\2", spec)
-                          spec = re.sub(r"(s\.ios\.deployment_target\s*=\s*')[0-9.]+(')", r"\g<1>13.0\2", spec)
-                          spec = re.sub(r'("ios":\s*")[0-9.]+(")', r'\g<1>13.0\2', spec)
-                          if spec != original:
-                              with open(fpath, "w", encoding="utf-8") as f:
-                                  f.write(spec)
-                              patched.append(fpath)
-                      except Exception as e:
-                          print(f"⚠️ Could not patch {fpath}: {e}")
+  #         patched = []
+  #         for root, dirs, files in os.walk(symlinks_dir):
+  #             for fname in files:
+  #                 if fname.endswith(".podspec") or fname.endswith(".podspec.json"):
+  #                     fpath = os.path.join(root, fname)
+  #                     try:
+  #                         with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+  #                             spec = f.read()
+  #                         original = spec
+  #                         spec = re.sub(r"(s\.platform\s*=\s*:ios,\s*')[0-9.]+(')", r"\g<1>13.0\2", spec)
+  #                         spec = re.sub(r"(s\.ios\.deployment_target\s*=\s*')[0-9.]+(')", r"\g<1>13.0\2", spec)
+  #                         spec = re.sub(r'("ios":\s*")[0-9.]+(")', r'\g<1>13.0\2', spec)
+  #                         if spec != original:
+  #                             with open(fpath, "w", encoding="utf-8") as f:
+  #                                 f.write(spec)
+  #                             patched.append(fpath)
+  #                     except Exception as e:
+  #                         print(f"⚠️ Could not patch {fpath}: {e}")
 
-          if patched:
-              print(f"✅ Patched {len(patched)} podspec(s):")
-              for p in patched:
-                  print(f"   {p}")
-          else:
-              print("ℹ️ No podspec files needed patching")
+  #         if patched:
+  #             print(f"✅ Patched {len(patched)} podspec(s):")
+  #             for p in patched:
+  #                 print(f"   {p}")
+  #         else:
+  #             print("ℹ️ No podspec files needed patching")
 
-          PYEOF
+  #         PYEOF
 
-          # Verify platform line
-          if ! grep -q "^platform :ios, '13.0'" "$IOS_DIR/Podfile"; then
-            echo "❌ Platform line not set correctly!"
-            cat "$IOS_DIR/Podfile"
-            exit 1
-          fi
+  #         # Verify platform line
+  #         if ! grep -q "^platform :ios, '13.0'" "$IOS_DIR/Podfile"; then
+  #           echo "❌ Platform line not set correctly!"
+  #           cat "$IOS_DIR/Podfile"
+  #           exit 1
+  #         fi
 
-          echo "✅ Running pod install..."
-          cd "$IOS_DIR" && pod install
+  #         echo "✅ Running pod install..."
+  #         cd "$IOS_DIR" && pod install
 
-      # - name: Set up iOS code signing
-      #   script: |
-      #     keychain initialize
-      #     echo $IOS_CERTIFICATE | base64 --decode > /tmp/cert.p12
-      #     keychain add-certificates --certificate /tmp/cert.p12 \
-      #       --certificate-password $IOS_CERTIFICATE_PASSWORD
-      #     echo $IOS_PROVISIONING_PROFILE | base64 --decode > /tmp/profile.mobileprovision
-      #     xcode-project use-profiles --profile /tmp/profile.mobileprovision
+  #     # - name: Set up iOS code signing
+  #     #   script: |
+  #     #     keychain initialize
+  #     #     echo $IOS_CERTIFICATE | base64 --decode > /tmp/cert.p12
+  #     #     keychain add-certificates --certificate /tmp/cert.p12 \
+  #     #       --certificate-password $IOS_CERTIFICATE_PASSWORD
+  #     #     echo $IOS_PROVISIONING_PROFILE | base64 --decode > /tmp/profile.mobileprovision
+  #     #     xcode-project use-profiles --profile /tmp/profile.mobileprovision
 
-      # - name: Create Export Options Plist
-      #   script: |
-      #     cat > /Users/builder/export_options.plist <<PLISTEOF
-      #     <?xml version="1.0" encoding="UTF-8"?>
-      #     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      #     <plist version="1.0">
-      #     <dict>
-      #         <key>method</key>
-      #         <string>app-store</string>
-      #         <key>bundleID</key>
-      #         <string>com.ay.sudokulegend</string>
-      #         <key>signingStyle</key>
-      #         <string>manual</string>
-      #         <key>provisioningProfiles</key>
-      #         <dict>
-      #             <key>com.ay.sudokulegend</key>
-      #             <string>SudokuLegend Distribution</string>
-      #         </dict>
-      #     </dict>
-      #     </plist>
-      #     PLISTEOF
+  #     # - name: Create Export Options Plist
+  #     #   script: |
+  #     #     cat > /Users/builder/export_options.plist <<PLISTEOF
+  #     #     <?xml version="1.0" encoding="UTF-8"?>
+  #     #     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  #     #     <plist version="1.0">
+  #     #     <dict>
+  #     #         <key>method</key>
+  #     #         <string>app-store</string>
+  #     #         <key>bundleID</key>
+  #     #         <string>com.ay.sudokulegend</string>
+  #     #         <key>signingStyle</key>
+  #     #         <string>manual</string>
+  #     #         <key>provisioningProfiles</key>
+  #     #         <dict>
+  #     #             <key>com.ay.sudokulegend</key>
+  #     #             <string>SudokuLegend Distribution</string>
+  #     #         </dict>
+  #     #     </dict>
+  #     #     </plist>
+  #     #     PLISTEOF
 
-      # - name: Build iOS IPA
-      #   script: |
-      #     flutter build ipa --release \
-      #       --export-options-plist=/Users/builder/export_options.plist
-      - name: Build iOS IPA
-        script: |
-          flutter build ipa --release --no-codesign
+  #     # - name: Build iOS IPA
+  #     #   script: |
+  #     #     flutter build ipa --release \
+  #     #       --export-options-plist=/Users/builder/export_options.plist
+  #     - name: Build iOS IPA
+  #       script: |
+  #         flutter build ipa --release --no-codesign
 
-    artifacts:
-      - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
+  #   artifacts:
+  #     - build/ios/ipa/*.ipa
+  #     - /tmp/xcodebuild_logs/*.log
+  #     - flutter_drive.log
 
-    publishing:
-      email:
-        recipients:
-          - aregbeayomide@gmail.com
-        notify:
-          success: true
-          failure: true
+  #   publishing:
+  #     email:
+  #       recipients:
+  #         - aregbeayomide@gmail.com
+  #       notify:
+  #         success: true
+  #         failure: true
