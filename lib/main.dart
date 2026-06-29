@@ -7,8 +7,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sudokulegend/Models/auth_service.dart';
 import 'package:sudokulegend/Models/state%20management/game_persistent.dart';
 import 'package:sudokulegend/Models/state%20management/settings_provider.dart';
 import 'package:sudokulegend/Models/storage/sudoku_storage_service.dart';
@@ -37,10 +39,14 @@ void main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+
+  await dotenv.load(fileName: '.env');
   
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  await AuthService().initGoogleSignIn();
 
   // Sync completed games if user is authenticated and has connectivity
   final user = FirebaseAuth.instance.currentUser;

@@ -65,7 +65,7 @@ workflows:
         script: flutter build apk --release
 
     artifacts:
-      - build/**/outputs/**/*.aab
+      # - build/**/outputs/**/*.aab
       - build/**/outputs/**/*.apk
       - build/**/outputs/**/mapping.txt
       - flutter_drive.log

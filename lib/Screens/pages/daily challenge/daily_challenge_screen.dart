@@ -248,7 +248,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 12, 10, 12),
+      padding: const EdgeInsets.fromLTRB(0, 23, 10, 12),
       child: Row(
         children: [
           IconButton(

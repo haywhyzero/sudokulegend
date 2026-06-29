@@ -8,6 +8,28 @@ class AuthService {
   AuthService._internal();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _googleSignInInitialized = false;
+
+  // Initialize Google Sign-In once — call this in main.dart after Firebase.initializeApp()
+  Future<void> initGoogleSignIn() async {
+    if (_googleSignInInitialized) return;
+
+    final clientID = dotenv.env['GOOGLE_CLIENTID'];
+    if (clientID == null || clientID.isEmpty) {
+      print("⚠️ GOOGLE_CLIENTID not found in .env");
+      return;
+    }
+
+    try {
+      await GoogleSignIn.instance.initialize(
+        serverClientId: clientID,
+      );
+      _googleSignInInitialized = true;
+      print("✅ GoogleSignIn initialized");
+    } catch (e) {
+      print("❌ Error initializing GoogleSignIn: $e");
+    }
+  }
 
   // Email/Password Sign Up
   Future<User?> signUp({
@@ -19,11 +41,9 @@ class AuthService {
       email: email,
       password: password,
     );
-    
     if (displayName != null) {
       await credential.user?.updateDisplayName(displayName);
     }
-    
     return credential.user;
   }
 
@@ -41,38 +61,27 @@ class AuthService {
 
   // Google Sign In
   Future<UserCredential?> signInWithGoogle() async {
-    try {
-      await dotenv.load(fileName: ".env");
-    } catch (e) {
-      print("Error loading .env file: $e");
+    // Guard: make sure initialized
+    if (!_googleSignInInitialized) {
+      await initGoogleSignIn();
+    }
+
+    if (!_googleSignInInitialized) {
+      print("❌ GoogleSignIn not initialized, aborting");
       return null;
     }
 
-    final clientID = dotenv.env['GOOGLE_CLIENTID'];
-    if (clientID == null || clientID.isEmpty) {
-      print("GOOGLE_CLIENTID not found in .env");
-      return null;
-    }
-
-    final googleSignIn = GoogleSignIn.instance;
     try {
-      await googleSignIn.initialize(
-        serverClientId: clientID,
-      );
-    } catch (e) {
-      print("Error initializing GoogleSignIn: $e");
-      return null;
-    }
-
-
-    try {
-      final GoogleSignInAccount? googleUser = await googleSignIn.authenticate();
+      final GoogleSignInAccount? googleUser =
+          await GoogleSignIn.instance.authenticate();
 
       if (googleUser == null) {
+        print("⚠️ Google Sign-In cancelled by user");
         return null;
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
@@ -80,7 +89,7 @@ class AuthService {
 
       return await _auth.signInWithCredential(credential);
     } catch (e) {
-      print("Error during Google authentication: $e");
+      print("❌ Error during Google authentication: $e");
       return null;
     }
   }
@@ -96,9 +105,7 @@ class AuthService {
 
   // Sign Out
   Future<void> signOut() async {
-    final googleSignIn = GoogleSignIn.instance;
-    
-    await googleSignIn.signOut();  
-    await FirebaseAuth.instance.signOut();
+    await GoogleSignIn.instance.signOut();
+    await _auth.signOut();
   }
 }

@@ -158,6 +158,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
         Padding(
           padding: const EdgeInsets.only(bottom: 5),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisSize: MainAxisSize.min,
             children: [
               ClipPath(
                 clipper: BottomCurveClipper(),
